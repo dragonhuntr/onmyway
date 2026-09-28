@@ -1,0 +1,12 @@
+<svg preserveAspectRatio="none" width="26" height="6" viewBox="0 0 26 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Loading Dots" clip-path="url(#clip0_0_31)">
+<circle id="Ellipse" cx="3" cy="3" r="3" fill="#1F6B4A"/>
+<circle id="Ellipse_2" opacity="0.6" cx="13" cy="3" r="3" fill="#1F6B4A"/>
+<circle id="Ellipse_3" opacity="0.3" cx="23" cy="3" r="3" fill="#1F6B4A"/>
+</g>
+<defs>
+<clipPath id="clip0_0_31">
+<rect width="26" height="6" fill="white"/>
+</clipPath>
+</defs>
+</svg>

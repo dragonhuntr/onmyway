@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Runner" clip-path="url(#clip0_0_35)">
+<circle id="Pulse" opacity="0.18" cx="22" cy="22" r="22" fill="#1F6B4A"/>
+<circle id="Dot" cx="22" cy="22" r="8.5" fill="#1F6B4A" stroke="white" stroke-width="3"/>
+</g>
+<defs>
+<clipPath id="clip0_0_35">
+<rect width="44" height="44" fill="white"/>
+</clipPath>
+</defs>
+</svg>
