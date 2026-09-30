@@ -5,7 +5,8 @@ struct Restaurant: Identifiable, Hashable {
     let name: String
     /// Location ID in Transact web ordering (`weborder.transactcampus.com/237/<id>`).
     let transactID: Int
-    let symbol: String
+    let logo: ImageResource
+    /// Background behind the logo; matches the logo image's own background.
     let tile: Color
     let distance: String
     let eta: String

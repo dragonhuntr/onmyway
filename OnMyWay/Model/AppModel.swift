@@ -98,13 +98,13 @@ final class AppModel {
 enum SampleData {
     // Penn State Behrend dining on Transact; hours from the Transact location list.
     static let restaurants: [Restaurant] = [
-        Restaurant(id: "clarks", name: "Clark’s Cafe", transactID: 2367, symbol: "carrot", tile: Color(hex: 0xDCEBD3),
+        Restaurant(id: "clarks", name: "Clark’s Cafe", transactID: 2367, logo: .logoClarks, tile: .white,
                    distance: "0.2 mi", eta: "8–12 min", rating: 4.8,
                    hours: .init(opens: 7 * 60 + 30, closes: 15 * 60)),
-        Restaurant(id: "paws", name: "Paws", transactID: 2368, symbol: "pawprint", tile: Color(hex: 0xF3D9D2),
+        Restaurant(id: "paws", name: "Paws", transactID: 2368, logo: .logoPaws, tile: .white,
                    distance: "0.3 mi", eta: "10–15 min", rating: 4.7,
                    hours: .init(opens: 7 * 60 + 30, closes: 18 * 60)),
-        Restaurant(id: "brunos", name: "Bruno’s", transactID: 2366, symbol: "cup.and.saucer", tile: Color(hex: 0xF6E3C4),
+        Restaurant(id: "brunos", name: "Bruno’s", transactID: 2366, logo: .logoBrunos, tile: Color(hex: 0x0B2C52),
                    distance: "0.4 mi", eta: "5–8 min", rating: 4.6,
                    hours: .init(opens: 10 * 60 + 30, closes: nil)),
     ]

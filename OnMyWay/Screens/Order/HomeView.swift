@@ -151,14 +151,15 @@ struct HomeView: View {
 struct FoodTile: View {
     let restaurant: Restaurant
     let size: CGSize
-    let symbolSize: CGFloat
 
     var body: some View {
-        Image(systemName: restaurant.symbol)
-            .font(.system(size: symbolSize))
-            .foregroundStyle(Color.ink.opacity(0.75))
+        Image(restaurant.logo)
+            .resizable()
+            .scaledToFit()
             .frame(width: size.width, height: size.height)
-            .background(restaurant.tile, in: .rect(cornerRadius: 12))
+            .background(restaurant.tile)
+            .clipShape(.rect(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.hairline))
             .accessibilityHidden(true)
     }
 }
@@ -168,7 +169,7 @@ struct RestaurantCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            FoodTile(restaurant: restaurant, size: CGSize(width: 148, height: 104), symbolSize: 40)
+            FoodTile(restaurant: restaurant, size: CGSize(width: 148, height: 104))
             VStack(alignment: .leading, spacing: 3) {
                 Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
                 Text("$1 delivery · \(restaurant.eta)").font(.caption).foregroundStyle(Color.inkSecondary)
@@ -194,7 +195,7 @@ struct RestaurantRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            FoodTile(restaurant: restaurant, size: CGSize(width: 60, height: 60), symbolSize: 24)
+            FoodTile(restaurant: restaurant, size: CGSize(width: 60, height: 60))
             VStack(alignment: .leading, spacing: 3) {
                 Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
                 Text("\(restaurant.distance) · \(restaurant.eta)").font(.caption).foregroundStyle(Color.inkSecondary)
