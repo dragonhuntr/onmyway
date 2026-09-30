@@ -28,10 +28,8 @@ struct TransactWebView: View {
     @Environment(AppModel.self) private var model
     @State private var isLoading = true
 
-    static let orderingURL = URL(string: "https://weborder.transactcampus.com")!
-
     var body: some View {
-        WKWebViewRepresentable(url: Self.orderingURL, isLoading: $isLoading)
+        WKWebViewRepresentable(url: restaurant.orderingURL, isLoading: $isLoading)
             .overlay { if isLoading { ProgressView() } }
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.white, for: .navigationBar)
@@ -45,7 +43,7 @@ struct TransactWebView: View {
                         Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
                         HStack(spacing: 4) {
                             Image(.shieldSmall).resizable().frame(width: 12, height: 12)
-                            Text(Self.orderingURL.host() ?? "").font(.caption).foregroundStyle(Color.inkSecondary)
+                            Text(restaurant.orderingURL.host() ?? "").font(.caption).foregroundStyle(Color.inkSecondary)
                         }
                     }
                     .accessibilityElement(children: .combine)

@@ -3,12 +3,45 @@ import SwiftUI
 struct Restaurant: Identifiable, Hashable {
     let id: String
     let name: String
+    /// Location ID in Transact web ordering (`weborder.transactcampus.com/237/<id>`).
+    let transactID: Int
     let symbol: String
     let tile: Color
     let distance: String
     let eta: String
     let rating: Double
-    var badge: String?
+    let hours: Hours
+
+    var orderingURL: URL { URL(string: "https://weborder.transactcampus.com/237/\(transactID)")! }
+
+    /// Daily opening hours, as minutes after midnight. `closes` is nil when unknown.
+    struct Hours: Hashable {
+        let opens: Int
+        let closes: Int?
+
+        func isOpen(at date: Date = .now) -> Bool {
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+            let minute = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            return minute >= opens && minute < (closes ?? 24 * 60)
+        }
+
+        func status(at date: Date = .now) -> String {
+            if isOpen(at: date) {
+                guard let closes else { return "Open now" }
+                return "Open · \(Self.format(opens)) – \(Self.format(closes))"
+            }
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+            let minute = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            return minute < opens ? "Opens at \(Self.format(opens))" : "Closed · Opens \(Self.format(opens))"
+        }
+
+        private static func format(_ minutes: Int) -> String {
+            let date = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: .now)!
+            return minutes % 60 == 0
+                ? date.formatted(.dateTime.hour())
+                : date.formatted(.dateTime.hour().minute())
+        }
+    }
 }
 
 struct Destination: Hashable {

@@ -24,7 +24,7 @@ struct HomeView: View {
                 if results.isEmpty {
                     ContentUnavailableView.search(text: query).padding(.top, 40)
                 } else {
-                    openNow
+                    if results.contains(where: { $0.hours.isOpen() }) { openNow }
                     popular
                 }
             }
@@ -121,7 +121,7 @@ struct HomeView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
-                    ForEach(results) { restaurant in
+                    ForEach(results.filter { $0.hours.isOpen() }) { restaurant in
                         Button { model.orderingFrom = restaurant } label: {
                             RestaurantCard(restaurant: restaurant)
                         }
@@ -136,8 +136,8 @@ struct HomeView: View {
 
     private var popular: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Popular near you").font(.headline).foregroundStyle(Color.ink)
-            ForEach(results.filter { $0.id != "noodle" }) { restaurant in
+            Text("All dining").font(.headline).foregroundStyle(Color.ink)
+            ForEach(results) { restaurant in
                 Button { model.orderingFrom = restaurant } label: {
                     RestaurantRow(restaurant: restaurant)
                 }
@@ -198,14 +198,13 @@ struct RestaurantRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
                 Text("\(restaurant.distance) · \(restaurant.eta)").font(.caption).foregroundStyle(Color.inkSecondary)
-                if let badge = restaurant.badge {
-                    Text(badge)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(Color.brandDeep)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.brandSoft, in: .rect(cornerRadius: 6))
-                }
+                let isOpen = restaurant.hours.isOpen()
+                Text(restaurant.hours.status())
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(isOpen ? Color.brandDeep : Color.inkSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(isOpen ? Color.brandSoft : Color.hairline, in: .rect(cornerRadius: 6))
             }
             Spacer(minLength: 0)
             Image(.chevronRight).resizable().frame(width: 20, height: 20).accessibilityHidden(true)
