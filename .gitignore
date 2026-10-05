@@ -5,3 +5,9 @@ xcuserdata/
 *.xcuserstate
 .DS_Store
 .claude/
+
+# Cloudflare
+api/node_modules/
+api/.wrangler/
+api/.cloudflare/
+api/.env

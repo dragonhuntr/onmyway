@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Signed-in person. `id` is the D1 user id, and later the Auth0 `sub`.
+struct SessionUser: Equatable {
+    var id: String
+    var username: String
+    var email: String
+    var firstName: String
+    var lastName: String
+}
+
 struct Restaurant: Identifiable, Hashable {
     let id: String
     let name: String

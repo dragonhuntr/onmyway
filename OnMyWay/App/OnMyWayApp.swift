@@ -18,7 +18,20 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var model = model
-        TabView(selection: $model.selectedTab) {
+        if model.isRestoringSession {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.canvas)
+        } else if model.session == nil {
+            LoginView()
+        } else {
+            mainTabs
+        }
+    }
+
+    private var mainTabs: some View {
+        @Bindable var model = model
+        return TabView(selection: $model.selectedTab) {
             Tab("Home", systemImage: "house", value: AppTab.home) {
                 HomeView()
             }

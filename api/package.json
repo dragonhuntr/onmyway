@@ -1,0 +1,14 @@
+{
+  "name": "onmyway-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cf dev",
+    "deploy": "cf deploy"
+  },
+  "devDependencies": {
+    "cf": "0.15.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.146.0"
+  }
+}

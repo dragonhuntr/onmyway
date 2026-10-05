@@ -14,17 +14,19 @@
 		86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB6AF243AF2C7269492439E /* OrdersTab.swift */; };
 		B0D6ACE0C68D598C66CCAA41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 84671FD3DDE68757F0198ABA /* Assets.xcassets */; };
 		C8EB415F54AB6CA821446273 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE0446CFDAD49CF057EAD83 /* Models.swift */; };
+		D4E6F8091A2B3C4D5E6F7081 /* AccountAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F708192A3B4C5D6E7F8092 /* AccountAPI.swift */; };
 		DD532022C7B317FB5638D5AA /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C0857CE8262A661389A312 /* HomeView.swift */; };
 		DFD2F1FDD65A62DBC334D862 /* OrderFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC632FCD6A8B0107E85AA77 /* OrderFlow.swift */; };
 		F4A9C7D4CC2B846FC8413101 /* OnMyWayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137EB1E5D05976862C649F33 /* OnMyWayApp.swift */; };
 		FA32EB4408724BCE950EA57E /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822C6C93360658CE174D0ED8 /* Theme.swift */; };
+		C8F5D2B10A3E4958672B1C3D /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4C1A09F2D3847561A0B2C /* AuthView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0FC632FCD6A8B0107E85AA77 /* OrderFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderFlow.swift; sourceTree = "<group>"; };
 		137EB1E5D05976862C649F33 /* OnMyWayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnMyWayApp.swift; sourceTree = "<group>"; };
 		1C65F7D753F4F29B0FF6B8B3 /* CampusMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampusMap.swift; sourceTree = "<group>"; };
-		2622B47B1906F4AD303AC72F /* OnMyWay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OnMyWay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2622B47B1906F4AD303AC72F /* OnMyWay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OnMyWay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3315DEF735C7AEC4486F6525 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		555014F4CF40D05B650CAADE /* RunnerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerViews.swift; sourceTree = "<group>"; };
 		5CB6AF243AF2C7269492439E /* OrdersTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrdersTab.swift; sourceTree = "<group>"; };
@@ -33,6 +35,8 @@
 		84671FD3DDE68757F0198ABA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C6618A1AC9070897088AE662 /* EarningsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarningsView.swift; sourceTree = "<group>"; };
 		ECE0446CFDAD49CF057EAD83 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		E5F708192A3B4C5D6E7F8092 /* AccountAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountAPI.swift; sourceTree = "<group>"; };
+		B7E4C1A09F2D3847561A0B2C /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -63,6 +67,7 @@
 		3772BAF5962BF9A9F05874F7 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F60718293A4B5C /* Auth */,
 				3C04458A38027C4C41CF8DC0 /* Earnings */,
 				D8C7D55F7F38F037FD46842C /* Order */,
 				85F9DDC518890FF6C3A3E520 /* Run */,
@@ -76,6 +81,14 @@
 				2622B47B1906F4AD303AC72F /* OnMyWay.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60718293A4B5C /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B7E4C1A09F2D3847561A0B2C /* AuthView.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		3C04458A38027C4C41CF8DC0 /* Earnings */ = {
@@ -97,6 +110,7 @@
 		8DAD4EE868C66EE06AEAAB5D /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				E5F708192A3B4C5D6E7F8092 /* AccountAPI.swift */,
 				3315DEF735C7AEC4486F6525 /* AppModel.swift */,
 				ECE0446CFDAD49CF057EAD83 /* Models.swift */,
 			);
@@ -163,8 +177,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 88427F1908F5009B51A1DB96 /* Build configuration list for PBXProject "OnMyWay" */;
 			developmentRegion = en;
@@ -206,11 +218,13 @@
 				0011865A1D98E9D66F8068C9 /* EarningsView.swift in Sources */,
 				DD532022C7B317FB5638D5AA /* HomeView.swift in Sources */,
 				C8EB415F54AB6CA821446273 /* Models.swift in Sources */,
+				D4E6F8091A2B3C4D5E6F7081 /* AccountAPI.swift in Sources */,
 				F4A9C7D4CC2B846FC8413101 /* OnMyWayApp.swift in Sources */,
 				DFD2F1FDD65A62DBC334D862 /* OrderFlow.swift in Sources */,
 				86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */,
 				3EA6B1CEB267F8340B69162A /* RunnerViews.swift in Sources */,
 				FA32EB4408724BCE950EA57E /* Theme.swift in Sources */,
+				C8F5D2B10A3E4958672B1C3D /* AuthView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,6 +237,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 5F24GU492Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "On My Way";
@@ -232,7 +247,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.appWYL;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -302,6 +317,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 5F24GU492Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "On My Way";
@@ -311,7 +327,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.appWYL;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

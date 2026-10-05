@@ -2,10 +2,24 @@ import SwiftUI
 
 enum AppTab: Hashable { case home, orders, run, earnings }
 
+private let tokenDefaultsKey = "accountToken"
+
+extension AccountAPI.Account {
+    var sessionUser: SessionUser {
+        SessionUser(id: id, username: username, email: email, firstName: firstName, lastName: lastName)
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
     var selectedTab: AppTab = .home
+
+    /// Signed-in account from Cloudflare D1. Nil shows the login screen.
+    var session: SessionUser?
+    /// True while a saved token is being checked on launch.
+    var isRestoringSession = UserDefaults.standard.string(forKey: tokenDefaultsKey) != nil
+    private var token = UserDefaults.standard.string(forKey: tokenDefaultsKey)
 
     // MARK: Customer side
     var destination = Destination(building: "Burke Center", room: "Room 174", note: "Text me when you arrive.")
@@ -22,6 +36,64 @@ final class AppModel {
     var requests = SampleData.requests
     var recentDeliveries = SampleData.recentDeliveries
     var cashOutBalance: Decimal = 42.60
+
+    init() {
+        if token != nil {
+            Task { await restoreSession() }
+        }
+    }
+
+    // MARK: Auth
+
+    func restoreSession() async {
+        guard isRestoringSession else { return }
+        defer { isRestoringSession = false }
+        guard let token else { return }
+        do {
+            let account = try await AccountAPI.currentAccount(token: token)
+            session = account.sessionUser
+        } catch {
+            clearToken()
+        }
+    }
+
+    func logIn(username: String, password: String) async throws {
+        let account = try await AccountAPI.login(username: username, password: password)
+        store(account)
+    }
+
+    func register(
+        email: String,
+        firstName: String,
+        lastName: String,
+        username: String,
+        password: String
+    ) async throws {
+        let account = try await AccountAPI.register(
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            username: username,
+            password: password
+        )
+        store(account)
+    }
+
+    func signOut() {
+        session = nil
+        clearToken()
+    }
+
+    private func store(_ account: AccountAPI.Account) {
+        token = account.token
+        UserDefaults.standard.set(account.token, forKey: tokenDefaultsKey)
+        session = account.sessionUser
+    }
+
+    private func clearToken() {
+        token = nil
+        UserDefaults.standard.removeObject(forKey: tokenDefaultsKey)
+    }
 
     // MARK: Customer actions
 
