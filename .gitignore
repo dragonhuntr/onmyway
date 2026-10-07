@@ -11,3 +11,4 @@ api/node_modules/
 api/.wrangler/
 api/.cloudflare/
 api/.env
+api/.dev.vars

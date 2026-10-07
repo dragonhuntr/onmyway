@@ -1,195 +1,96 @@
-type UserRow = {
-  id: string;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  password_hash: string;
-  password_salt: string;
-};
+import type { Env } from "./env.ts";
+import { HttpError, Router, cors, json } from "./http.ts";
+import { login, logout, me, register } from "./auth.ts";
+import { home, listBuildings, setDestination } from "./places.ts";
+import { activeOrder, cancelOrder, confirmPayment, createOrder, getOrder, listOrders, reportOrder } from "./orders.ts";
+import {
+  acceptOrder,
+  confirmDropoff,
+  confirmPickup,
+  createTrip,
+  deleteTrip,
+  listRequests,
+  listTrips,
+  releaseOrder,
+  runnerHome,
+  setAvailability,
+  updateLocation,
+  updateTrip,
+} from "./runner.ts";
+import { listMessages, sendMessage } from "./chat.ts";
+import { confirmTip, rateOrder } from "./ratings.ts";
+import { cashOut, deliveries, earnings, payoutAccountLink, payoutAccountStatus } from "./money.ts";
+import { connectRefresh, connectReturn, stripeWebhook } from "./webhooks.ts";
+import { sweep } from "./cron.ts";
 
-const iterations = 100_000;
+const router = new Router()
+  // Account
+  .on("POST", "/register", register)
+  .on("POST", "/login", login)
+  .on("POST", "/logout", logout)
+  .on("GET", "/me", me)
+  .on("PUT", "/me/destination", setDestination)
+  // Places
+  .on("GET", "/home", home)
+  .on("GET", "/buildings", listBuildings)
+  // Customer orders
+  .on("POST", "/orders", createOrder)
+  .on("GET", "/orders", listOrders)
+  .on("GET", "/orders/active", activeOrder)
+  .on("GET", "/orders/:id", getOrder)
+  .on("POST", "/orders/:id/payment", confirmPayment)
+  .on("POST", "/orders/:id/cancel", cancelOrder)
+  .on("POST", "/orders/:id/rating", rateOrder)
+  .on("POST", "/orders/:id/report", reportOrder)
+  .on("POST", "/tips/:id/payment", confirmTip)
+  // Chat
+  .on("GET", "/orders/:id/messages", listMessages)
+  .on("POST", "/orders/:id/messages", sendMessage)
+  // Runner
+  .on("GET", "/runner", runnerHome)
+  .on("PUT", "/runner/status", setAvailability)
+  .on("POST", "/runner/location", updateLocation)
+  .on("GET", "/runner/requests", listRequests)
+  .on("POST", "/orders/:id/accept", acceptOrder)
+  .on("POST", "/orders/:id/pickup", confirmPickup)
+  .on("POST", "/orders/:id/deliver", confirmDropoff)
+  .on("POST", "/orders/:id/release", releaseOrder)
+  .on("GET", "/trips", listTrips)
+  .on("POST", "/trips", createTrip)
+  .on("PUT", "/trips/:id", updateTrip)
+  .on("DELETE", "/trips/:id", deleteTrip)
+  // Earnings and payouts
+  .on("GET", "/earnings", earnings)
+  .on("GET", "/deliveries", deliveries)
+  .on("POST", "/payouts", cashOut)
+  .on("GET", "/runner/payout-account", payoutAccountStatus)
+  .on("POST", "/runner/payout-account", payoutAccountLink)
+  // Stripe
+  .on("POST", "/stripe/webhook", stripeWebhook)
+  .on("GET", "/stripe/connect/return", connectReturn)
+  .on("GET", "/stripe/connect/refresh", connectRefresh);
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") {
       return cors(new Response(null, { status: 204 }));
     }
 
     const url = new URL(request.url);
+    const route = router.match(request.method, url.pathname);
+    if (!route) return cors(json({ error: "Not found" }, 404));
     try {
-      if (request.method === "POST" && url.pathname === "/register") {
-        return cors(await register(request, env));
-      }
-      if (request.method === "POST" && url.pathname === "/login") {
-        return cors(await login(request, env));
-      }
-      if (request.method === "GET" && url.pathname === "/me") {
-        return cors(await me(request, env));
-      }
-      return cors(json({ error: "Not found" }, 404));
+      return cors(await route.handler({ request, env, ctx, url, params: route.params }));
     } catch (error) {
+      if (error instanceof HttpError) {
+        return cors(json({ error: error.message, ...(error.code ? { code: error.code } : {}) }, error.status));
+      }
       console.error(error);
       return cors(json({ error: "Something went wrong" }, 500));
     }
   },
-};
 
-async function register(request: Request, env: Env): Promise<Response> {
-  const body = await readJSON(request);
-  const email = text(body.email).toLowerCase();
-  const username = text(body.username);
-  const firstName = text(body.firstName);
-  const lastName = text(body.lastName);
-  const password = text(body.password);
-
-  if (!email.includes("@") || !username || !firstName || !lastName) {
-    return json({ error: "Fill in every field." }, 400);
-  }
-  if (password.length < 8) {
-    return json({ error: "Use a password of at least 8 characters." }, 400);
-  }
-
-  const existing = await env.DB.prepare(
-    "SELECT username, email FROM users WHERE username = ?1 OR email = ?2",
-  )
-    .bind(username, email)
-    .first<{ username: string; email: string }>();
-  if (existing) {
-    const taken = existing.email.toLowerCase() === email ? "email" : "username";
-    return json({ error: `That ${taken} is already registered.` }, 409);
-  }
-
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const id = crypto.randomUUID();
-  const token = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT INTO users (id, username, email, first_name, last_name, password_hash, password_salt)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
-  )
-    .bind(id, username, email, firstName, lastName, await hashPassword(password, salt), encodeBase64(salt))
-    .run();
-  await env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?1, ?2)").bind(token, id).run();
-
-  return json({
-    id,
-    username,
-    email,
-    firstName,
-    lastName,
-    token,
-  });
-}
-
-async function login(request: Request, env: Env): Promise<Response> {
-  const body = await readJSON(request);
-  const username = text(body.username);
-  const password = text(body.password);
-  if (!username || !password) {
-    return json({ error: "Enter your username and password." }, 400);
-  }
-
-  const user = await env.DB.prepare(
-    "SELECT id, username, email, first_name, last_name, password_hash, password_salt FROM users WHERE username = ?1",
-  )
-    .bind(username)
-    .first<UserRow>();
-  if (!user || !(await passwordMatches(password, user))) {
-    return json({ error: "Username or password is wrong." }, 401);
-  }
-
-  const token = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO sessions (token, user_id) VALUES (?1, ?2)").bind(token, user.id).run();
-  return json(publicUser(user, token));
-}
-
-async function me(request: Request, env: Env): Promise<Response> {
-  const token = bearer(request);
-  if (!token) return json({ error: "Sign in again." }, 401);
-
-  const user = await env.DB.prepare(
-    `SELECT users.id, users.username, users.email, users.first_name, users.last_name
-     FROM sessions JOIN users ON users.id = sessions.user_id
-     WHERE sessions.token = ?1`,
-  )
-    .bind(token)
-    .first<Omit<UserRow, "password_hash" | "password_salt">>();
-  if (!user) return json({ error: "Sign in again." }, 401);
-  return json(publicUser(user, token));
-}
-
-function publicUser(user: Omit<UserRow, "password_hash" | "password_salt">, token: string) {
-  return {
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    firstName: user.first_name,
-    lastName: user.last_name,
-    token,
-  };
-}
-
-async function hashPassword(password: string, salt: Uint8Array): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    key,
-    256,
-  );
-  return encodeBase64(new Uint8Array(bits));
-}
-
-async function passwordMatches(password: string, user: UserRow): Promise<boolean> {
-  const actual = await hashPassword(password, decodeBase64(user.password_salt));
-  return actual === user.password_hash;
-}
-
-function bearer(request: Request): string | null {
-  const header = request.headers.get("Authorization") ?? "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match?.[1] ?? null;
-}
-
-async function readJSON(request: Request): Promise<Record<string, unknown>> {
-  try {
-    const value = await request.json();
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      return value as Record<string, unknown>;
-    }
-  } catch {
-    // Fall through to the empty object.
-  }
-  return {};
-}
-
-function text(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-function cors(response: Response): Response {
-  const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  return new Response(response.body, { status: response.status, headers });
-}
-
-function encodeBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(sweep(env));
+  },
+} satisfies ExportedHandler<Env>;
