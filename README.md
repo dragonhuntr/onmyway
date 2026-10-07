@@ -2,24 +2,29 @@
 
 Campus food delivery by students who are already walking your way. Order and pay on Transact as usual, then hand the order number to a runner heading to your building for a $1 fee.
 
-SwiftUI iOS app built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv9NKuzNReT/On-My-Way).
+Built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv9NKuzNReT/On-My-Way) as a monorepo:
+
+- `ios/` SwiftUI app
+- `android/` Jetpack Compose app, a port of the iOS app with the same screens and flows
+- `api/` Cloudflare Worker + D1 backend both apps talk to
 
 ## Screens
 
-| # | Screen | File |
-|---|--------|------|
-| 01A | Login | `Screens/Auth/AuthView.swift` |
-| 01B | Register | `Screens/Auth/AuthView.swift` |
-| 01 | Home | `Screens/Order/HomeView.swift` |
-| 02 | Order web view (Transact, `WKWebView`) | `Screens/Order/OrderFlow.swift` |
-| 03 | Enter order number | `Screens/Order/OrderFlow.swift` |
-| 04 | Finding runner | `Screens/Order/OrderFlow.swift` |
-| 05 | Order tracking | `Screens/Order/OrdersTab.swift` |
-| 06 | Delivered | `Screens/Order/OrdersTab.swift` |
-| 07 | Runner home | `Screens/Run/RunnerViews.swift` |
-| 08 | Delivery request | `Screens/Run/RunnerViews.swift` |
-| 09 | Active delivery | `Screens/Run/RunnerViews.swift` |
-| 10 | Earnings | `Screens/Earnings/EarningsView.swift` |
+| # | Screen | iOS (`ios/OnMyWay/`) | Android (`android/app/src/main/java/com/onmyway/app/ui/`) |
+|---|--------|-----|---------|
+| 01A | Login | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
+| 01B | Register | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
+| 01 | Home | `Screens/Order/HomeView.swift` | `order/HomeScreen.kt` |
+| 02 | Order web view (Transact) | `Screens/Order/OrderFlow.swift` | `order/OrderFlow.kt` |
+| 03 | Enter order number | `Screens/Order/OrderFlow.swift` | `order/OrderFlow.kt` |
+| 04 | Finding runner | `Screens/Order/OrderFlow.swift` | `order/OrderFlow.kt` |
+| 05 | Order tracking | `Screens/Order/OrdersTab.swift` | `order/OrdersTab.kt` |
+| 06 | Delivered | `Screens/Order/OrdersTab.swift` | `order/OrdersTab.kt` |
+| 07 | Runner home | `Screens/Run/RunnerViews.swift` | `run/RunnerScreens.kt` |
+| 08 | Delivery request | `Screens/Run/RunnerViews.swift` | `run/RunnerScreens.kt` |
+| 09 | Active delivery | `Screens/Run/RunnerViews.swift` | `run/RunnerScreens.kt` |
+| 10 | Earnings | `Screens/Earnings/EarningsView.swift` | `earnings/EarningsScreen.kt` |
+| — | Chat, destination + trip pickers | `Screens/Shared/` | `shared/` |
 
 ## Flows
 
@@ -56,7 +61,7 @@ npx wrangler dev --local --port 8799 --test-scheduled
 node test/flow.mjs http://localhost:8799   # end-to-end flow test
 ```
 
-To point the app at it, add the environment variable `API_URL=http://localhost:8799` to the Xcode scheme.
+To point the iOS app at it, add the environment variable `API_URL=http://localhost:8799` to the Xcode scheme. For the Android emulator, build with `./gradlew installDebug -PapiUrl=http://10.0.2.2:8799` (the emulator reaches your Mac at `10.0.2.2`).
 
 ### Deploying
 
@@ -76,27 +81,48 @@ Building coordinates in `api/migrations/0003_behrend_places.sql` are approximate
 
 ## Requirements
 
-- Xcode 26+
-- iOS 18.0+
+- iOS: Xcode 26+, iOS 18.0+
+- Android: JDK 17+, Android SDK 35, Android 8.0 (API 26)+
 
 ## Run
 
+### iOS
+
 ```sh
-open OnMyWay.xcodeproj
+open ios/OnMyWay.xcodeproj
 ```
 
-The Xcode project is generated from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). After adding or removing files, run `xcodegen generate`.
+The Xcode project is generated from `ios/project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). After adding or removing files, run `xcodegen generate` in `ios/`.
+
+### Android
+
+Open `android/` in Android Studio, or from the command line with an emulator running:
+
+```sh
+cd android
+./gradlew installDebug
+```
+
+Payments use the Stripe Android SDK's PaymentSheet. Runner location uses the platform `LocationManager`, so no Google Play services are needed.
 
 ## Structure
 
 ```
-OnMyWay/
-  App/           App entry and root TabView
-  Model/         API client, AppModel (@Observable), Stripe PaymentSheet, location reporting
-  Theme/         Color tokens, button styles, cards, chips
-  Components/    Illustrated campus map
-  Screens/       Auth, Order, Run, Earnings, Shared (chat, destination + trip pickers)
-  Assets.xcassets  Icons exported from Figma (vector SVG), AccentColor
+ios/
+  OnMyWay/
+    App/           App entry and root TabView
+    Model/         API client, AppModel (@Observable), Stripe PaymentSheet, location reporting
+    Theme/         Color tokens, button styles, cards, chips
+    Components/    Illustrated campus map
+    Screens/       Auth, Order, Run, Earnings, Shared (chat, destination + trip pickers)
+    Assets.xcassets  Icons exported from Figma (vector SVG), AccentColor
+  project.yml      XcodeGen spec
+android/
+  app/src/main/java/com/onmyway/app/
+    MainActivity.kt
+    model/         API client, AppModel (ViewModel), models
+    ui/            App root + tab bar, theme, components (map, payments, location), screens
+  app/src/main/res/  Figma icons as vector drawables, restaurant logos
 api/
   src/           Worker: routes in index.ts; auth, places, orders, runner, chat, ratings, money, stripe, webhooks, cron
   migrations/    D1 schema and Behrend buildings + dining

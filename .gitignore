@@ -6,6 +6,13 @@ xcuserdata/
 .DS_Store
 .claude/
 
+# Android
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/.idea/
+*.iml
+
 # Cloudflare
 api/node_modules/
 api/.wrangler/
