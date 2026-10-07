@@ -7,10 +7,14 @@ import Charts
 /// available), so colors and icons follow the other screens' tokens.
 struct EarningsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
     @State private var period: EarningsPeriod = .thisWeek
+    @State private var isCashingOut = false
+    @State private var errorMessage: String?
 
+    private var summary: Earnings? { model.earnings[period] }
     private var days: [DailyEarning] { model.earnings(for: period) }
-    private var total: Double { days.map(\.amount).reduce(0, +) }
+    private var total: Double { Double(summary?.totalCents ?? 0) / 100 }
 
     var body: some View {
         NavigationStack {
@@ -26,6 +30,8 @@ struct EarningsView: View {
             }
             .background(Color.canvas)
             .navigationTitle("Earnings")
+            .refreshable { await load() }
+            .task(id: period) { await load() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -46,18 +52,52 @@ struct EarningsView: View {
         }
     }
 
+    private func load() async {
+        async let earnings: Void = model.loadEarnings(period)
+        async let deliveries: Void = model.loadDeliveries()
+        _ = await (earnings, deliveries)
+    }
+
+    /// Opens Stripe onboarding the first time; after that, pays the balance out.
+    private func cashOut() async {
+        isCashingOut = true
+        errorMessage = nil
+        defer { isCashingOut = false }
+        do {
+            if let onboarding = try await model.cashOut() {
+                openURL(onboarding)
+            } else {
+                await model.loadEarnings(period)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// "SEP 7 – SEP 13"
+    private var weekLabel: String {
+        guard let summary,
+              let start = try? Date(summary.start, strategy: .iso8601.year().month().day()),
+              let end = try? Date(summary.end, strategy: .iso8601.year().month().day())
+        else { return period.rawValue.uppercased() }
+        // The server sends plain dates, parsed as UTC midnight; format them in UTC too.
+        let style = Date.FormatStyle(timeZone: .gmt).month(.abbreviated).day()
+        return "\(start.formatted(style)) – \(end.formatted(style))".uppercased()
+    }
+
     private var weeklyTotal: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Eyebrow(period == .thisWeek ? "SEP 7 – SEP 13" : "AUG 31 – SEP 6")
+            Eyebrow(weekLabel)
             HStack(alignment: .lastTextBaseline, spacing: 10) {
                 Text(total, format: .currency(code: "USD"))
                     .font(.largeTitle.bold())
                     .foregroundStyle(Color.ink)
                     .contentTransition(.numericText())
-                if period == .thisWeek {
+                if let change = summary?.changePercent {
                     HStack(spacing: 5) {
-                        Image(systemName: "chart.line.uptrend.xyaxis").font(.caption2.weight(.semibold))
-                        Text("+18% vs last week").font(.caption.weight(.semibold))
+                        Image(systemName: change >= 0 ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis")
+                            .font(.caption2.weight(.semibold))
+                        Text("\(change >= 0 ? "+" : "")\(change)% vs week before").font(.caption.weight(.semibold))
                     }
                     .foregroundStyle(Color.brandDeep)
                     .padding(.horizontal, 10)
@@ -72,7 +112,7 @@ struct EarningsView: View {
                     width: 28
                 )
                 .clipShape(.rect(cornerRadius: 6))
-                .foregroundStyle(day.amount == days.map(\.amount).max() ? Color.brand : Color.brandOutline.opacity(0.55))
+                .foregroundStyle(day.amount > 0 && day.amount == days.map(\.amount).max() ? Color.brand : Color.brandOutline.opacity(0.55))
                 .accessibilityLabel(Calendar.current.weekdaySymbols[(day.index + 1) % 7])
                 .accessibilityValue(day.amount.formatted(.currency(code: "USD")))
             }
@@ -94,9 +134,9 @@ struct EarningsView: View {
 
     private var stats: some View {
         HStack(spacing: 10) {
-            stat(period == .thisWeek ? "24" : "20", "deliveries")
-            stat(period == .thisWeek ? "1h 40m" : "1h 22m", "walking")
-            stat((total / (period == .thisWeek ? 24 : 20)).formatted(.currency(code: "USD")), "avg per trip")
+            stat("\(summary?.deliveries ?? 0)", "deliveries")
+            stat(Duration.seconds((summary?.walkingMinutes ?? 0) * 60).formatted(.units(allowed: [.hours, .minutes], width: .narrow)), "walking")
+            stat((summary?.averageCents ?? 0).usd, "avg per trip")
         }
     }
 
@@ -116,16 +156,17 @@ struct EarningsView: View {
                 .background(Color.amberSoft, in: .rect(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Available to cash out").font(.caption).foregroundStyle(Color.inkSecondary)
-                Text(model.cashOutBalance.usd).font(.title3.bold()).foregroundStyle(Color.ink)
+                Text(model.cashOutBalanceCents.usd).font(.title3.bold()).foregroundStyle(Color.ink)
                     .contentTransition(.numericText())
-                Text("Instant to Bank Account · no fee").font(.caption2).foregroundStyle(Color.inkSecondary)
+                Text(errorMessage ?? (summary?.payoutsEnabled == false ? "Set up payouts with Stripe to cash out" : "To your bank via Stripe · no fee"))
+                    .font(.caption2).foregroundStyle(Color.inkSecondary)
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
-            Button("Cash out") { withAnimation { model.cashOut() } }
+            Button("Cash out") { Task { await cashOut() } }
                 .buttonStyle(CompactButtonStyle())
-                .disabled(model.cashOutBalance == 0)
-                .opacity(model.cashOutBalance == 0 ? 0.5 : 1)
+                .disabled(model.cashOutBalanceCents == 0 || isCashingOut)
+                .opacity(model.cashOutBalanceCents == 0 ? 0.5 : 1)
         }
         .card(padding: 14)
     }
@@ -135,11 +176,12 @@ struct EarningsView: View {
             HStack {
                 Text("Recent deliveries").font(.headline).foregroundStyle(Color.ink)
                 Spacer()
-                Button("See all", action: { /* TODO: delivery history */ })
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.brand)
             }
             .padding(.top, 4)
+            if model.recentDeliveries.isEmpty {
+                Text("Deliveries you complete show up here.")
+                    .font(.footnote).foregroundStyle(Color.inkSecondary)
+            }
             ForEach(model.recentDeliveries) { delivery in
                 HStack(spacing: 12) {
                     Image(.footprintsGreen).resizable().frame(width: 20, height: 20)
@@ -151,7 +193,7 @@ struct EarningsView: View {
                     }
                     Spacer(minLength: 0)
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(delivery.amount.usd).font(.subheadline.bold()).foregroundStyle(Color.ink)
+                        Text(delivery.amountCents.usd).font(.subheadline.bold()).foregroundStyle(Color.ink)
                         Text(delivery.rating).font(.caption2).foregroundStyle(Color.inkSecondary)
                     }
                 }

@@ -49,6 +49,15 @@ struct RootView: View {
             OrderFlow(restaurant: restaurant)
                 .environment(model)
         }
+        .alert(
+            "Order closed",
+            isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } }),
+            presenting: model.notice
+        ) { _ in
+            Button("OK") {}
+        } message: { notice in
+            Text(notice)
+        }
     }
 }
 

@@ -8,36 +8,56 @@
 
 /* Begin PBXBuildFile section */
 		0011865A1D98E9D66F8068C9 /* EarningsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6618A1AC9070897088AE662 /* EarningsView.swift */; };
+		2552E461BF6906235B37B7EB /* Payments.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00DC0F25C261063AC814181 /* Payments.swift */; };
 		3EA6B1CEB267F8340B69162A /* RunnerViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 555014F4CF40D05B650CAADE /* RunnerViews.swift */; };
+		40D712252BC3E9B88EC35D05 /* Pickers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103FB3916FF3E3036EE20912 /* Pickers.swift */; };
 		42B9D2271D4CC38F408F13C9 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3315DEF735C7AEC4486F6525 /* AppModel.swift */; };
+		4CFBA33016EE59A5479CF309 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EB217EAC0C4494B5EA3A24 /* API.swift */; };
 		51A494EF233BF9DD256B0520 /* CampusMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C65F7D753F4F29B0FF6B8B3 /* CampusMap.swift */; };
 		86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB6AF243AF2C7269492439E /* OrdersTab.swift */; };
 		B0D6ACE0C68D598C66CCAA41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 84671FD3DDE68757F0198ABA /* Assets.xcassets */; };
+		C6B7C701A4D0F4C1B67730C3 /* LocationReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDE1951D7B8AE2C9E7A616B /* LocationReporter.swift */; };
 		C8EB415F54AB6CA821446273 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE0446CFDAD49CF057EAD83 /* Models.swift */; };
-		D4E6F8091A2B3C4D5E6F7081 /* AccountAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F708192A3B4C5D6E7F8092 /* AccountAPI.swift */; };
+		D3D573D1DF829A41CC75708D /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = 6140B83E601A09B4418F65EB /* StripePaymentSheet */; };
+		D6A7D5EB53B39789127D8A83 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB28E3BE9D2418AE569D1C3 /* AuthView.swift */; };
 		DD532022C7B317FB5638D5AA /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C0857CE8262A661389A312 /* HomeView.swift */; };
 		DFD2F1FDD65A62DBC334D862 /* OrderFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC632FCD6A8B0107E85AA77 /* OrderFlow.swift */; };
 		F4A9C7D4CC2B846FC8413101 /* OnMyWayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137EB1E5D05976862C649F33 /* OnMyWayApp.swift */; };
+		F540D4952FD7EEAB0C9BF366 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EE5BEA5048A85FD7078BE7C /* ChatView.swift */; };
 		FA32EB4408724BCE950EA57E /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822C6C93360658CE174D0ED8 /* Theme.swift */; };
-		C8F5D2B10A3E4958672B1C3D /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4C1A09F2D3847561A0B2C /* AuthView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0FC632FCD6A8B0107E85AA77 /* OrderFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderFlow.swift; sourceTree = "<group>"; };
+		103FB3916FF3E3036EE20912 /* Pickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pickers.swift; sourceTree = "<group>"; };
 		137EB1E5D05976862C649F33 /* OnMyWayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnMyWayApp.swift; sourceTree = "<group>"; };
 		1C65F7D753F4F29B0FF6B8B3 /* CampusMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampusMap.swift; sourceTree = "<group>"; };
-		2622B47B1906F4AD303AC72F /* OnMyWay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OnMyWay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2622B47B1906F4AD303AC72F /* OnMyWay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OnMyWay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2EE5BEA5048A85FD7078BE7C /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		3315DEF735C7AEC4486F6525 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		555014F4CF40D05B650CAADE /* RunnerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerViews.swift; sourceTree = "<group>"; };
 		5CB6AF243AF2C7269492439E /* OrdersTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrdersTab.swift; sourceTree = "<group>"; };
 		62C0857CE8262A661389A312 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		7CDE1951D7B8AE2C9E7A616B /* LocationReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationReporter.swift; sourceTree = "<group>"; };
 		822C6C93360658CE174D0ED8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		84671FD3DDE68757F0198ABA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C6618A1AC9070897088AE662 /* EarningsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarningsView.swift; sourceTree = "<group>"; };
+		D00DC0F25C261063AC814181 /* Payments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Payments.swift; sourceTree = "<group>"; };
+		DAB28E3BE9D2418AE569D1C3 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		E1EB217EAC0C4494B5EA3A24 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		ECE0446CFDAD49CF057EAD83 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		E5F708192A3B4C5D6E7F8092 /* AccountAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountAPI.swift; sourceTree = "<group>"; };
-		B7E4C1A09F2D3847561A0B2C /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B812D87DDA0F788856EBDABA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3D573D1DF829A41CC75708D /* StripePaymentSheet in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		1260548ABF84A12832C16960 /* Components */ = {
@@ -67,10 +87,11 @@
 		3772BAF5962BF9A9F05874F7 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F60718293A4B5C /* Auth */,
+				CCF9F4A82548DDA7A6AA7EE6 /* Auth */,
 				3C04458A38027C4C41CF8DC0 /* Earnings */,
 				D8C7D55F7F38F037FD46842C /* Order */,
 				85F9DDC518890FF6C3A3E520 /* Run */,
+				A6055D5D53E3C8186AA7FCAF /* Shared */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -81,14 +102,6 @@
 				2622B47B1906F4AD303AC72F /* OnMyWay.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		A1B2C3D4E5F60718293A4B5C /* Auth */ = {
-			isa = PBXGroup;
-			children = (
-				B7E4C1A09F2D3847561A0B2C /* AuthView.swift */,
-			);
-			path = Auth;
 			sourceTree = "<group>";
 		};
 		3C04458A38027C4C41CF8DC0 /* Earnings */ = {
@@ -110,11 +123,22 @@
 		8DAD4EE868C66EE06AEAAB5D /* Model */ = {
 			isa = PBXGroup;
 			children = (
-				E5F708192A3B4C5D6E7F8092 /* AccountAPI.swift */,
+				E1EB217EAC0C4494B5EA3A24 /* API.swift */,
 				3315DEF735C7AEC4486F6525 /* AppModel.swift */,
+				7CDE1951D7B8AE2C9E7A616B /* LocationReporter.swift */,
 				ECE0446CFDAD49CF057EAD83 /* Models.swift */,
+				D00DC0F25C261063AC814181 /* Payments.swift */,
 			);
 			path = Model;
+			sourceTree = "<group>";
+		};
+		A6055D5D53E3C8186AA7FCAF /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				2EE5BEA5048A85FD7078BE7C /* ChatView.swift */,
+				103FB3916FF3E3036EE20912 /* Pickers.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		B93616FD72ACFB6BD1704871 /* OnMyWay */ = {
@@ -128,6 +152,14 @@
 				E9D6A4398C7D5C82BBBE8273 /* Theme */,
 			);
 			path = OnMyWay;
+			sourceTree = "<group>";
+		};
+		CCF9F4A82548DDA7A6AA7EE6 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				DAB28E3BE9D2418AE569D1C3 /* AuthView.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		D8C7D55F7F38F037FD46842C /* Order */ = {
@@ -157,6 +189,7 @@
 			buildPhases = (
 				C29121151E1BCD82CC66E433 /* Sources */,
 				AB63A92F3FEE2F5175DC409B /* Resources */,
+				B812D87DDA0F788856EBDABA /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -164,6 +197,7 @@
 			);
 			name = OnMyWay;
 			packageProductDependencies = (
+				6140B83E601A09B4418F65EB /* StripePaymentSheet */,
 			);
 			productName = OnMyWay;
 			productReference = 2622B47B1906F4AD303AC72F /* OnMyWay.app */;
@@ -177,6 +211,8 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 88427F1908F5009B51A1DB96 /* Build configuration list for PBXProject "OnMyWay" */;
 			developmentRegion = en;
@@ -187,6 +223,9 @@
 			);
 			mainGroup = 1782AAA3DBEF23B6223E52C3;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F435387F65EAD827F9E8D1F3 /* XCRemoteSwiftPackageReference "stripe-ios-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 388B56EB6B9AFFC087419983 /* Products */;
 			projectDirPath = "";
@@ -213,18 +252,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4CFBA33016EE59A5479CF309 /* API.swift in Sources */,
 				42B9D2271D4CC38F408F13C9 /* AppModel.swift in Sources */,
+				D6A7D5EB53B39789127D8A83 /* AuthView.swift in Sources */,
 				51A494EF233BF9DD256B0520 /* CampusMap.swift in Sources */,
+				F540D4952FD7EEAB0C9BF366 /* ChatView.swift in Sources */,
 				0011865A1D98E9D66F8068C9 /* EarningsView.swift in Sources */,
 				DD532022C7B317FB5638D5AA /* HomeView.swift in Sources */,
+				C6B7C701A4D0F4C1B67730C3 /* LocationReporter.swift in Sources */,
 				C8EB415F54AB6CA821446273 /* Models.swift in Sources */,
-				D4E6F8091A2B3C4D5E6F7081 /* AccountAPI.swift in Sources */,
 				F4A9C7D4CC2B846FC8413101 /* OnMyWayApp.swift in Sources */,
 				DFD2F1FDD65A62DBC334D862 /* OrderFlow.swift in Sources */,
 				86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */,
+				2552E461BF6906235B37B7EB /* Payments.swift in Sources */,
+				40D712252BC3E9B88EC35D05 /* Pickers.swift in Sources */,
 				3EA6B1CEB267F8340B69162A /* RunnerViews.swift in Sources */,
 				FA32EB4408724BCE950EA57E /* Theme.swift in Sources */,
-				C8F5D2B10A3E4958672B1C3D /* AuthView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,17 +280,17 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 5F24GU492Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "On My Way";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "While you're delivering, your location shows the student where their order is.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.appWYL;
+				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -317,17 +360,17 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 5F24GU492Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "On My Way";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "While you're delivering, your location shows the student where their order is.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.appWYL;
+				PRODUCT_BUNDLE_IDENTIFIER = com.onmyway.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -420,6 +463,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F435387F65EAD827F9E8D1F3 /* XCRemoteSwiftPackageReference "stripe-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stripe/stripe-ios-spm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 26.13.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6140B83E601A09B4418F65EB /* StripePaymentSheet */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F435387F65EAD827F9E8D1F3 /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
+			productName = StripePaymentSheet;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2FC811EF01AF0C74C6119851 /* Project object */;
 }

@@ -4,6 +4,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
+    @State private var choosingDestination = false
 
     private var results: [Restaurant] {
         guard !query.isEmpty else { return model.restaurants }
@@ -30,19 +31,22 @@ struct HomeView: View {
             }
             .background(Color.canvas)
             .toolbarVisibility(.hidden, for: .navigationBar)
+            .refreshable { await model.loadHome() }
+            .task { await model.loadHome() }
+            .sheet(isPresented: $choosingDestination) { DestinationPicker() }
         }
     }
 
     private var header: some View {
         HStack {
-            Button(action: { /* TODO: location picker */ }) {
+            Button { choosingDestination = true } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Deliver to")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.inkSecondary)
                     HStack(spacing: 6) {
                         Image(.pinLocation).resizable().frame(width: 18, height: 18)
-                        Text(model.destination.short)
+                        Text(model.destination?.short ?? "Choose a building")
                             .font(.callout.weight(.semibold))
                             .foregroundStyle(Color.ink)
                         Image(.chevronRight).resizable().frame(width: 16, height: 16)
@@ -50,7 +54,7 @@ struct HomeView: View {
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Deliver to \(model.destination.short)")
+            .accessibilityLabel("Deliver to \(model.destination?.short ?? "no building chosen")")
             .accessibilityHint("Change delivery location")
 
             Spacer()
@@ -64,12 +68,19 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Notifications")
 
-            Text("M")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Color.brandDeep)
-                .frame(width: 44, height: 44)
-                .background(Color.amberSoft, in: .circle)
-                .accessibilityLabel("Profile")
+            Menu {
+                if let session = model.session {
+                    Text("\(session.firstName) \(session.lastName) · @\(session.username)")
+                }
+                Button("Sign out", role: .destructive) { model.signOut() }
+            } label: {
+                Text(model.session?.firstName.prefix(1).uppercased() ?? "")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.brandDeep)
+                    .frame(width: 44, height: 44)
+                    .background(Color.amberSoft, in: .circle)
+            }
+            .accessibilityLabel("Profile")
         }
     }
 
@@ -93,7 +104,7 @@ struct HomeView: View {
                 Text("\(model.runnersHeadingYourWay) runners heading your way")
                     .font(.title3.bold())
                     .foregroundStyle(.white)
-                Text("Students already walking to \(model.destination.building) can bring your order in ~10 min for a $1 fee.")
+                Text("Students already walking to \(model.destination?.building ?? "your building") can bring your order in ~10 min for a $1 fee.")
                     .font(.footnote)
                     .foregroundStyle(Color.onBrand)
             }
@@ -173,13 +184,9 @@ struct RestaurantCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
                 Text("$1 delivery · \(restaurant.eta)").font(.caption).foregroundStyle(Color.inkSecondary)
-                HStack(spacing: 4) {
-                    Image(.star).resizable().frame(width: 14, height: 14)
-                    Text(restaurant.rating, format: .number.precision(.fractionLength(1)))
-                        .font(.caption.weight(.medium)).foregroundStyle(Color.ink)
+                if let building = restaurant.building {
+                    Text(building.name).font(.caption.weight(.medium)).foregroundStyle(Color.ink)
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Rated \(restaurant.rating.formatted()) stars")
             }
         }
         .padding(10)

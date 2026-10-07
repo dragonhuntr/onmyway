@@ -4,6 +4,10 @@ options:
   deploymentTarget:
     iOS: "18.0"
   createIntermediateGroups: true
+packages:
+  Stripe:
+    url: https://github.com/stripe/stripe-ios-spm
+    from: 26.13.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -14,6 +18,9 @@ targets:
     type: application
     platform: iOS
     sources: [OnMyWay]
+    dependencies:
+      - package: Stripe
+        product: StripePaymentSheet
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onmyway.app
@@ -21,6 +28,7 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_CFBundleDisplayName: On My Way
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: While you're delivering, your location shows the student where their order is.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"

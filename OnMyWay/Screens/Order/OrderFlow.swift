@@ -98,12 +98,17 @@ struct EnterOrderNumberView: View {
     let restaurant: Restaurant
     @Binding var path: [OrderStep]
     @Environment(AppModel.self) private var model
-    @State private var orderNumber = "4821"
+    @State private var orderNumber = ""
+    @State private var nameOnOrder = ""
+    @State private var readyAt = Date.now.addingTimeInterval(10 * 60)
     @State private var tip: Tip = .one
+    @State private var choosingDestination = false
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
     @FocusState private var numberFocused: Bool
 
-    private let deliveryFee: Decimal = 1
-    private var due: Decimal { deliveryFee + tip.rawValue }
+    private let deliveryFee = 100
+    private var due: Int { deliveryFee + tip.rawValue }
 
     var body: some View {
         ScrollView {
@@ -123,6 +128,10 @@ struct EnterOrderNumberView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Send to a runner")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $choosingDestination) { DestinationPicker() }
+        .onAppear {
+            if nameOnOrder.isEmpty { nameOnOrder = model.session?.shortName ?? "" }
+        }
         .footer {
             HStack(spacing: 8) {
                 Image(.shield).resizable().frame(width: 16, height: 16)
@@ -133,15 +142,52 @@ struct EnterOrderNumberView: View {
             }
             .padding(.horizontal, 4)
 
-            Button("Send to runner · \(due.usd)") {
-                model.sendToRunner(Order(
-                    restaurant: restaurant, number: orderNumber, nameOnOrder: "Evan B.",
-                    readyAround: "9:50 AM", destination: model.destination, tip: tip, deliveryFee: deliveryFee
-                ))
-                path.append(.findingRunner)
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Button(isSubmitting ? "Sending…" : "Send to runner · \(due.usd)") {
+                Task { await submit() }
             }
             .buttonStyle(.primaryCTA)
-            .disabled(orderNumber.isEmpty)
+            .disabled(orderNumber.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
+        }
+    }
+
+    /// Creates the order, takes the delivery fee + tip through Stripe, then starts matching.
+    private func submit() async {
+        guard model.destination != nil else {
+            choosingDestination = true
+            return
+        }
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+        do {
+            let payment = try await model.createOrder(
+                restaurant: restaurant,
+                number: orderNumber.trimmingCharacters(in: .whitespaces),
+                nameOnOrder: nameOnOrder,
+                readyAt: readyAt,
+                tip: tip
+            )
+            if let payment {
+                switch await Payments.pay(payment) {
+                case .completed:
+                    try await model.confirmPayment()
+                case .canceled:
+                    return
+                case .failed(let error):
+                    errorMessage = error.localizedDescription
+                    return
+                }
+            }
+            path.append(.findingRunner)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -191,17 +237,24 @@ struct EnterOrderNumberView: View {
                 .font(.footnote).foregroundStyle(Color.inkSecondary)
 
             HStack(spacing: 10) {
-                field("Name on order", "Evan B.")
-                field("Ready around", "9:50 AM")
+                field("Name on order") {
+                    TextField("Name", text: $nameOnOrder)
+                        .textContentType(.name)
+                }
+                field("Ready around") {
+                    DatePicker("Ready around", selection: $readyAt, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .fixedSize()
+                }
             }
         }
         .card()
     }
 
-    private func field(_ label: String, _ value: String) -> some View {
+    private func field<Value: View>(_ label: String, @ViewBuilder value: () -> Value) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.caption.weight(.medium)).foregroundStyle(Color.inkSecondary)
-            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
+            value().font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -215,7 +268,7 @@ struct EnterOrderNumberView: View {
             HStack {
                 Eyebrow("DELIVER TO")
                 Spacer()
-                Button("Change", action: { /* TODO: location picker */ })
+                Button(model.destination == nil ? "Choose" : "Change") { choosingDestination = true }
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.brand)
             }
@@ -224,8 +277,10 @@ struct EnterOrderNumberView: View {
                     .frame(width: 44, height: 44)
                     .background(Color.brandSoft, in: .rect(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.destination.full).font(.callout.weight(.semibold)).foregroundStyle(Color.ink)
-                    Text(model.destination.note).font(.footnote).foregroundStyle(Color.inkSecondary)
+                    Text(model.destination?.full ?? "Pick a building").font(.callout.weight(.semibold)).foregroundStyle(Color.ink)
+                    if let note = model.destination?.note, !note.isEmpty {
+                        Text(note).font(.footnote).foregroundStyle(Color.inkSecondary)
+                    }
                 }
             }
             .accessibilityElement(children: .combine)
@@ -280,34 +335,32 @@ struct EnterOrderNumberView: View {
     }
 
     private var paymentCard: some View {
-        Button(action: { /* TODO: payment methods */ }) {
-            HStack(spacing: 12) {
-                Image(.walletAmber).resizable().frame(width: 20, height: 20)
-                    .frame(width: 40, height: 40)
-                    .background(Color.amberSoft, in: .rect(cornerRadius: 10))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Campus Card •••• 4821").font(.subheadline.weight(.medium)).foregroundStyle(Color.ink)
-                    Text("Charged for delivery + tip only").font(.footnote).foregroundStyle(Color.inkSecondary)
-                }
-                Spacer()
-                Image(.chevronRight).resizable().frame(width: 20, height: 20)
+        HStack(spacing: 12) {
+            Image(.walletAmber).resizable().frame(width: 20, height: 20)
+                .frame(width: 40, height: 40)
+                .background(Color.amberSoft, in: .rect(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Card · chosen at checkout").font(.subheadline.weight(.medium)).foregroundStyle(Color.ink)
+                Text("Held now, charged when it’s delivered. Delivery + tip only.")
+                    .font(.footnote).foregroundStyle(Color.inkSecondary)
             }
-            .card(padding: 14)
+            Spacer()
         }
-        .buttonStyle(.plain)
+        .card(padding: 14)
+        .accessibilityElement(children: .combine)
     }
 }
 
 /// 04_Finding_Runner — match with a student already walking this way.
 struct FindingRunnerView: View {
     @Environment(AppModel.self) private var model
-    @State private var progress = 0.35
+    @State private var progress = 0.1
 
     var body: some View {
         ScrollView {
             CampusMap(height: 360, route: .init(image: .routeFinding, size: CGSize(width: 282, height: 212.8))) { s in
                 MapItem(space: s, x: 34, y: 266.4) { MapPin(kind: .pickup, label: model.activeOrder?.restaurant.name ?? "") }
-                MapItem(space: s, x: 321.5, y: 57.6) { MapPin(kind: .dropoff, label: model.destination.building) }
+                MapItem(space: s, x: 321.5, y: 57.6) { MapPin(kind: .dropoff, label: building) }
                 MapItem(space: s, x: 150, y: 150) { RunnerDot() }
                 MapItem(space: s, x: 300, y: 250) { RunnerDot() }
                 MapItem(space: s, x: 200, y: 300) { RunnerDot() }
@@ -323,7 +376,7 @@ struct FindingRunnerView: View {
                 .padding(.vertical, 6)
                 .background(Color.brandSoft, in: .capsule)
 
-                Text("Looking for a runner on their way to \(model.destination.building)")
+                Text("Looking for a runner on their way to \(building)")
                     .font(.title3.bold())
                     .foregroundStyle(Color.ink)
 
@@ -334,7 +387,9 @@ struct FindingRunnerView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        infoPill(.footprints, "3 runners on this route")
+                        infoPill(.footprints, model.runnersHeadingYourWay == 1
+                                 ? "1 runner heading your way"
+                                 : "\(model.runnersHeadingYourWay) runners heading your way")
                         infoPill(.clock, "Usually under 5 min")
                     }
                 }
@@ -347,7 +402,7 @@ struct FindingRunnerView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Order #\(order.number) · \(order.restaurant.name)")
                                 .font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
-                            Text("\(order.nameOnOrder) · Ready at ~\(order.readyAround)")
+                            Text("\(order.nameOnOrder) · Ready at ~\(order.readyAt?.shortTime ?? "soon")")
                                 .font(.footnote).foregroundStyle(Color.inkSecondary)
                         }
                     }
@@ -361,16 +416,18 @@ struct FindingRunnerView: View {
         .navigationTitle("Finding your runner")
         .navigationBarTitleDisplayMode(.inline)
         .footer {
-            Button("Cancel order") { model.cancelActiveOrder() }
+            Button("Cancel order") { Task { await model.cancelActiveOrder() } }
                 .buttonStyle(.outlineCTA)
         }
         .task {
-            // Simulated matching until the runner service exists.
-            withAnimation(.easeInOut(duration: 3)) { progress = 1 }
-            try? await Task.sleep(for: .seconds(3.2))
-            guard !Task.isCancelled else { return }
-            model.runnerMatched()
+            // The model polls the order and closes this flow once a runner accepts.
+            // The bar only shows that matching is under way; most matches take under 5 minutes.
+            withAnimation(.easeOut(duration: 300)) { progress = 0.95 }
         }
+    }
+
+    private var building: String {
+        model.activeOrder?.destination.building ?? model.destination?.building ?? "your building"
     }
 
     private func infoPill(_ icon: ImageResource, _ text: String) -> some View {

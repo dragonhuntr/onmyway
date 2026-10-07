@@ -7,8 +7,10 @@ struct OrdersTab: View {
         @Bindable var model = model
         NavigationStack {
             Group {
-                if let order = model.activeOrder, order.runner != nil {
-                    OrderTrackingView(order: order)
+                if let order = model.activeOrder, let runner = order.runner {
+                    OrderTrackingView(order: order, runner: runner)
+                } else if let order = model.activeOrder, order.status == .matching, model.orderingFrom == nil {
+                    FindingRunnerView()
                 } else {
                     ContentUnavailableView {
                         Label("No active orders", systemImage: "receipt")
@@ -32,10 +34,12 @@ struct OrdersTab: View {
 /// 05_Order_Tracking — live map plus runner details and delivery timeline.
 struct OrderTrackingView: View {
     let order: Order
-    @Environment(AppModel.self) private var model
-    @Environment(\.openURL) private var openURL
+    let runner: Runner
+    @State private var chatting = false
 
-    private var runner: Runner { order.runner ?? SampleData.wiYa }
+    private var eta: Int { order.etaMinutes ?? order.walkMinutes }
+    /// Where the runner dot sits on the illustrated map: near pickup until picked up, then halfway.
+    private var runnerPoint: (x: CGFloat, y: CGFloat) { order.status == .pickedUp ? (204.9, 111.6) : (70, 200) }
 
     var body: some View {
         ScrollView {
@@ -47,33 +51,21 @@ struct OrderTrackingView: View {
         .background(Color.canvas)
         .scrollBounceBehavior(.basedOnSize)
         .toolbarVisibility(.hidden, for: .navigationBar)
-        .task(id: order.id) {
-            // Simulated hand-off until live runner location exists.
-            try? await Task.sleep(for: .seconds(12))
-            guard !Task.isCancelled else { return }
-            model.markDelivered()
-        }
+        .sheet(isPresented: $chatting) { ChatView(orderID: order.id, title: runner.name) }
     }
 
     private var map: some View {
         CampusMap(height: 310, route: .init(image: .routeTracking, size: CGSize(width: 282, height: 183.8))) { s in
             MapItem(space: s, x: 34, y: 229.4) { MapPin(kind: .pickup, label: order.restaurant.name) }
             MapItem(space: s, x: 321.5, y: 49.6) { MapPin(kind: .dropoff, label: order.destination.building) }
-            MapItem(space: s, x: 204.9, y: 111.6) {
-                RunnerDot().accessibilityHidden(false).accessibilityLabel("\(runner.name), \(order.etaMinutes) minutes away")
+            MapItem(space: s, x: runnerPoint.x, y: runnerPoint.y) {
+                RunnerDot().accessibilityHidden(false).accessibilityLabel("\(runner.name), \(eta) minutes away")
             }
-            MapItem(space: s, x: 204.9, y: 76) { MapLabel(text: "\(runner.name) · \(order.etaMinutes) min", filled: true) }
-            MapItem(space: s, x: 355, y: 38) {
-                Button(action: { /* TODO: recenter on live location */ }) {
-                    Image(.navigation).resizable().frame(width: 20, height: 20)
-                        .frame(width: 44, height: 44)
-                        .background(.white, in: .circle)
-                        .overlay(Circle().strokeBorder(Color.hairline))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Recenter map")
+            MapItem(space: s, x: runnerPoint.x, y: runnerPoint.y - 35.6) {
+                MapLabel(text: "\(runner.firstName) · \(eta) min", filled: true)
             }
         }
+        .animation(.easeInOut, value: order.status)
     }
 
     private var sheet: some View {
@@ -86,16 +78,17 @@ struct OrderTrackingView: View {
                     .clipShape(.circle)
                     .accessibilityLabel("Photo of \(runner.name), your runner")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(runner.name) is on the way").font(.title3.bold()).foregroundStyle(Color.ink)
+                    Text(order.status == .pickedUp ? "\(runner.firstName) is on the way" : "\(runner.firstName) is getting your food")
+                        .font(.title3.bold()).foregroundStyle(Color.ink)
                     HStack(spacing: 4) {
-                        Image(.star).resizable().frame(width: 14, height: 14)
-                        Text("\(runner.rating.formatted()) · \(runner.deliveries) deliveries · \(runner.blurb)")
+                        if runner.rating != nil { Image(.star).resizable().frame(width: 14, height: 14) }
+                        Text(runner.summary)
                             .font(.footnote).foregroundStyle(Color.inkSecondary)
                     }
                 }
                 Spacer(minLength: 0)
                 VStack(spacing: 0) {
-                    Text("\(order.etaMinutes) min").font(.callout.bold())
+                    Text("\(eta) min").font(.callout.bold())
                     Text("ETA").font(.system(size: 10, weight: .semibold)).tracking(0.8)
                 }
                 .foregroundStyle(Color.brandDeep)
@@ -105,23 +98,21 @@ struct OrderTrackingView: View {
                 .accessibilityElement(children: .combine)
             }
 
-            HStack(spacing: 10) {
-                Image(.footprintsAmber).resizable().frame(width: 18, height: 18)
-                Text(runner.routeNote).font(.footnote).foregroundStyle(Color.amberInk)
-                Spacer(minLength: 0)
+            if let routeNote = runner.routeNote {
+                HStack(spacing: 10) {
+                    Image(.footprintsAmber).resizable().frame(width: 18, height: 18)
+                    Text(routeNote).font(.footnote).foregroundStyle(Color.amberInk)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.amberSoft, in: .rect(cornerRadius: 12))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.amberSoft, in: .rect(cornerRadius: 12))
 
             timeline
 
-            HStack(spacing: 10) {
-                Button("Message \(runner.name)") { openURL(URL(string: "sms:\(runner.phone)")!) }
-                    .buttonStyle(.secondaryCTA)
-                Button("Call") { openURL(URL(string: "tel:\(runner.phone)")!) }
-                    .buttonStyle(.outlineCTA)
-            }
+            Button("Message \(runner.firstName)") { chatting = true }
+                .buttonStyle(.secondaryCTA)
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
@@ -133,14 +124,17 @@ struct OrderTrackingView: View {
 
     private var timeline: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TimelineStep(title: "Order #\(order.number) sent to \(runner.name)", subtitle: "9:41 AM", state: .done)
-            TimelineStep(title: "Picked up at \(order.restaurant.name)", subtitle: "9:47 AM", state: .done)
-            TimelineStep(title: "On the way · \(order.destination.building)", subtitle: "Arriving ~9:53", state: .current)
-            Button { model.markDelivered() } label: {
-                TimelineStep(title: "Delivered", subtitle: nil, state: .upcoming, isLast: true)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Mark as delivered")
+            let pickedUp = order.status == .pickedUp
+            let arriving = Date.now.addingTimeInterval(TimeInterval(eta * 60)).shortTime
+            TimelineStep(title: "Order #\(order.number) sent to \(runner.firstName)",
+                         subtitle: order.acceptedAt?.shortTime, state: .done)
+            TimelineStep(title: pickedUp ? "Picked up at \(order.restaurant.name)" : "Picking up at \(order.restaurant.name)",
+                         subtitle: order.pickedUpAt?.shortTime ?? order.readyAt.map { "Ready ~\($0.shortTime)" },
+                         state: pickedUp ? .done : .current)
+            TimelineStep(title: "On the way · \(order.destination.building)",
+                         subtitle: pickedUp ? "Arriving ~\(arriving)" : nil,
+                         state: pickedUp ? .current : .upcoming)
+            TimelineStep(title: "Delivered", subtitle: nil, state: .upcoming, isLast: true)
         }
     }
 }
@@ -197,13 +191,15 @@ struct TimelineStep: View {
 struct DeliveredView: View {
     let order: Order
     @Environment(AppModel.self) private var model
-    @State private var rating = 4
-    @State private var tags: Set<String> = ["On time", "Friendly"]
-    @State private var extraTip: String?
+    @State private var rating = 5
+    @State private var tags: Set<String> = []
+    @State private var extraTip: Int?
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
 
     private let feedback = ["On time", "Friendly", "Careful with food"]
-    private let extraTips = ["+$1", "+$2", "+$3", "Custom"]
-    private var runnerName: String { order.runner?.name ?? "your runner" }
+    private let extraTips = [100, 200, 300]
+    private var runnerName: String { order.runner?.firstName ?? "your runner" }
 
     var body: some View {
         ScrollView {
@@ -216,7 +212,7 @@ struct DeliveredView: View {
                         .background(Color.brandSoft, in: .circle)
                         .accessibilityHidden(true)
                     Text("Delivered!").font(.title.bold()).foregroundStyle(Color.ink)
-                    Text("\(runnerName) handed off your order at \(order.destination.building), \(order.destination.room) at 9:52 AM.")
+                    Text("\(runnerName) handed off your order at \(order.destination.full)\(order.deliveredAt.map { " at \($0.shortTime)" } ?? "").")
                         .font(.subheadline)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
@@ -227,7 +223,7 @@ struct DeliveredView: View {
                         .frame(width: 40, height: 40)
                         .background(Color.amber, in: .circle)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("You paid \(order.deliveryFee.usd) for delivery")
+                        Text("You paid \(order.deliveryFeeCents.usd) for delivery")
                             .font(.subheadline.weight(.semibold)).foregroundStyle(Color.amberInkDeep)
                         Text("$5.99 less than the cheapest commercial app.")
                             .font(.footnote).foregroundStyle(Color.amberInk)
@@ -247,11 +243,40 @@ struct DeliveredView: View {
         }
         .background(Color.canvas)
         .footer {
-            Button("Done") { model.finishDelivered(orderAgain: false) }
+            if let errorMessage {
+                Text(errorMessage).font(.footnote.weight(.semibold)).foregroundStyle(Color.inkSecondary)
+            }
+            Button("Done") { Task { await finish(orderAgain: false) } }
                 .buttonStyle(.primaryCTA)
-            Button("Order again") { model.finishDelivered(orderAgain: true) }
+                .disabled(isSubmitting)
+            Button("Order again") { Task { await finish(orderAgain: true) } }
                 .buttonStyle(.secondaryCTA)
+                .disabled(isSubmitting)
         }
+    }
+
+    /// Sends the rating (and pays any extra tip), then closes.
+    private func finish(orderAgain: Bool) async {
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+        do {
+            if order.rating == nil, let (tipID, payment) = try await model.rate(
+                order, stars: rating, tags: Array(tags), extraTipCents: extraTip ?? 0
+            ) {
+                if case .failed(let error) = await Payments.pay(payment) {
+                    errorMessage = error.localizedDescription
+                    return
+                }
+                try? await model.confirmTip(tipID)
+            }
+        } catch let error as APIError where error.code == "already_rated" {
+            // Rated on an earlier tap; just close.
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+        model.finishDelivered(orderAgain: orderAgain)
     }
 
     private var rateCard: some View {
@@ -287,13 +312,13 @@ struct DeliveredView: View {
     private var tipCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Add to your \(order.tip.rawValue.usd) tip?").font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
+                Text("Add to your \(order.tipCents.usd) tip?").font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
                 Spacer()
                 Text("100% to \(runnerName)").font(.caption.weight(.medium)).foregroundStyle(Color.inkSecondary)
             }
             HStack(spacing: 8) {
                 ForEach(extraTips, id: \.self) { tip in
-                    ChipToggle(title: tip, isSelected: extraTip == tip, fillsWidth: true) {
+                    ChipToggle(title: "+\(tip.usd)", isSelected: extraTip == tip, fillsWidth: true) {
                         extraTip = extraTip == tip ? nil : tip
                     }
                 }

@@ -1,8 +1,9 @@
 import type { Env, User } from "./env.ts";
 import { HttpError, hex } from "./http.ts";
 
-/** Pinned so ephemeral keys match what the iOS PaymentSheet expects. */
 const apiVersion = "2024-06-20";
+/** Ephemeral keys must use the version the mobile SDK speaks (`STPAPIClient.apiVersion`). */
+const mobileSDKVersion = "2020-08-27";
 
 interface Params {
   [key: string]: string | number | boolean | undefined | Params;
@@ -22,7 +23,7 @@ export async function stripe<T>(
   method: "GET" | "POST" | "DELETE",
   path: string,
   params: Params = {},
-  options: { idempotencyKey?: string } = {},
+  options: { idempotencyKey?: string; version?: string } = {},
 ): Promise<T> {
   if (!env.STRIPE_SECRET_KEY) throw new HttpError(503, "Payments aren't set up yet.", "payments_unconfigured");
   const body = new URLSearchParams();
@@ -30,7 +31,7 @@ export async function stripe<T>(
   const url = `https://api.stripe.com/v1/${path}${method === "GET" && body.size ? `?${body}` : ""}`;
   const headers: Record<string, string> = {
     Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-    "Stripe-Version": apiVersion,
+    "Stripe-Version": options.version ?? apiVersion,
   };
   if (method !== "GET") headers["Content-Type"] = "application/x-www-form-urlencoded";
   if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
@@ -94,7 +95,7 @@ export async function paymentSheet(
     },
     { idempotencyKey },
   );
-  const key = await stripe<{ secret: string }>(env, "POST", "ephemeral_keys", { customer });
+  const key = await stripe<{ secret: string }>(env, "POST", "ephemeral_keys", { customer }, { version: mobileSDKVersion });
   return {
     intentID: intent.id,
     sheet: {
