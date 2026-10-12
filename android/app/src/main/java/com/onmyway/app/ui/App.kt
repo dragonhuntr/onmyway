@@ -32,6 +32,7 @@ import com.onmyway.app.ui.order.DeliveredScreen
 import com.onmyway.app.ui.order.HomeScreen
 import com.onmyway.app.ui.order.OrderFlow
 import com.onmyway.app.ui.order.OrdersTab
+import com.onmyway.app.ui.order.ProfileScreen
 import com.onmyway.app.ui.run.RunTab
 import com.onmyway.app.ui.shared.ChatScreen
 import com.onmyway.app.ui.theme.OmwColors
@@ -71,6 +72,7 @@ private fun MainTabs(model: AppModel) {
     model.chat?.let { return ChatScreen(model, it) }
     model.deliveredOrder?.let { return DeliveredScreen(model, it) }
     model.orderingFrom?.let { return OrderFlow(model, it) }
+    if (model.showingProfile) return ProfileScreen(model)
 
     val showsTabBar = !(model.selectedTab == AppTab.Run && model.runPath.isNotEmpty())
     Column(Modifier.fillMaxSize().background(OmwColors.Canvas)) {

@@ -50,6 +50,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     var notice by mutableStateOf<String?>(null)
     /** Open chat, if any. */
     var chat by mutableStateOf<ChatTarget?>(null)
+    /** True when the profile screen full-screen cover is open. */
+    var showingProfile by mutableStateOf(false)
 
     // Customer side
     var destination by mutableStateOf<Destination?>(null)
@@ -122,6 +124,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         activeDelivery = null
         orderingFrom = null
         chat = null
+        showingProfile = false
         runPath.clear()
         selectedTab = AppTab.Home
         clearToken()
