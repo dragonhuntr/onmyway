@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -24,8 +26,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ReportProblem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon as MaterialIcon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +67,7 @@ import com.onmyway.app.model.Runner
 import com.onmyway.app.model.shortTime
 import com.onmyway.app.model.usd
 import com.onmyway.app.ui.components.rememberPayments
+import com.onmyway.app.ui.run.SheetAction
 import com.stripe.android.paymentsheet.PaymentSheetResult
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -212,6 +220,57 @@ private fun OrderTrackingScreen(model: AppModel, order: Order, runner: Runner) {
 
             CtaButton("Message ${runner.firstName}", kind = CtaKind.Secondary) {
                 model.chat = ChatTarget(order.id, runner.name)
+            }
+
+            ReportProblem(model, order.id, listOf("Runner isn’t responding", "It’s taking too long", "Other"))
+        }
+    }
+}
+
+/** "Report a problem" link: picks a reason and files a report on the order. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportProblem(model: AppModel, orderId: String, reasons: List<String>, modifier: Modifier = Modifier) {
+    var choosing by remember { mutableStateOf(false) }
+    var reported by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 24.dp)
+            .clickable(enabled = !reported, role = Role.Button) { choosing = true },
+    ) {
+        MaterialIcon(
+            if (reported) Icons.Outlined.Check else Icons.Outlined.ReportProblem,
+            contentDescription = null,
+            tint = OmwColors.InkSecondary,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            if (reported) "Reported. We’ll look into it." else "Report a problem",
+            style = OmwType.Footnote.medium,
+            color = OmwColors.InkSecondary,
+        )
+    }
+
+    if (choosing) {
+        ModalBottomSheet(onDismissRequest = { choosing = false }, containerColor = Color.White) {
+            Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+                Text(
+                    "What’s wrong?",
+                    style = OmwType.Headline,
+                    color = OmwColors.Ink,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                )
+                reasons.forEach { reason ->
+                    SheetAction(reason, OmwColors.Ink) {
+                        choosing = false
+                        scope.launch { reported = runCatching { model.report(orderId, reason, "") }.isSuccess }
+                    }
+                }
             }
         }
     }
@@ -414,6 +473,13 @@ fun DeliveredScreen(model: AppModel, order: Order) {
                     }
                 }
             }
+
+            ReportProblem(
+                model,
+                order.id,
+                listOf("I didn’t get my order", "Items missing or wrong", "Food was damaged", "Other"),
+                Modifier.padding(top = 4.dp),
+            )
         }
         Footer {
             errorMessage?.let { Text(it, style = OmwType.Footnote.semibold, color = OmwColors.InkSecondary) }

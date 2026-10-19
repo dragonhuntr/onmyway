@@ -763,7 +763,7 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
 }
 
 @Composable
-private fun SheetAction(text: String, color: Color, onClick: () -> Unit) {
+internal fun SheetAction(text: String, color: Color, onClick: () -> Unit) {
     Text(
         text,
         style = OmwType.Body,

@@ -113,6 +113,9 @@ struct OrderTrackingView: View {
 
             Button("Message \(runner.firstName)") { chatting = true }
                 .buttonStyle(.secondaryCTA)
+
+            ReportProblemButton(orderID: order.id,
+                                reasons: ["Runner isn’t responding", "It’s taking too long", "Other"])
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
@@ -135,6 +138,34 @@ struct OrderTrackingView: View {
                          subtitle: pickedUp ? "Arriving ~\(arriving)" : nil,
                          state: pickedUp ? .current : .upcoming)
             TimelineStep(title: "Delivered", subtitle: nil, state: .upcoming, isLast: true)
+        }
+    }
+}
+
+/// "Report a problem" link: picks a reason and files a report on the order.
+struct ReportProblemButton: View {
+    let orderID: String
+    let reasons: [String]
+    @Environment(AppModel.self) private var model
+    @State private var choosing = false
+    @State private var reported = false
+
+    var body: some View {
+        Button { choosing = true } label: {
+            Label(reported ? "Reported. We’ll look into it." : "Report a problem",
+                  systemImage: reported ? "checkmark" : "exclamationmark.bubble")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Color.inkSecondary)
+                .frame(maxWidth: .infinity, minHeight: 24)
+        }
+        .buttonStyle(.plain)
+        .disabled(reported)
+        .confirmationDialog("What’s wrong?", isPresented: $choosing, titleVisibility: .visible) {
+            ForEach(reasons, id: \.self) { reason in
+                Button(reason) {
+                    Task { reported = (try? await model.report(orderID, reason: reason, details: "")) != nil }
+                }
+            }
         }
     }
 }
@@ -236,6 +267,9 @@ struct DeliveredView: View {
 
                 rateCard
                 tipCard
+                ReportProblemButton(orderID: order.id,
+                                    reasons: ["I didn’t get my order", "Items missing or wrong", "Food was damaged", "Other"])
+                    .padding(.top, 4)
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
