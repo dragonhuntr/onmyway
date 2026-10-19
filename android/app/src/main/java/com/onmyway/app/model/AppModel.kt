@@ -34,6 +34,12 @@ data class ChatTarget(val orderId: String, val title: String)
 private const val TOKEN_KEY = "accountToken"
 
 class AppModel(application: Application) : AndroidViewModel(application) {
+    companion object {
+        /** The signed-in session's token, for code outside the view model such as [PushService]. */
+        fun savedToken(context: Context): String? =
+            context.getSharedPreferences("account", Context.MODE_PRIVATE).getString(TOKEN_KEY, null)
+    }
+
     private val prefs = application.getSharedPreferences("account", Context.MODE_PRIVATE)
 
     var selectedTab by mutableStateOf(AppTab.Home)
@@ -98,6 +104,10 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         val token = token ?: return
         try {
             session = Api.currentAccount(token).sessionUser
+            pendingPushKind?.let { kind ->
+                pendingPushKind = null
+                openFromPush(kind)
+            }
             loadSignedIn()
         } catch (e: ApiException) {
             clearToken()
@@ -143,11 +153,27 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadSignedIn() {
+        token?.let { token -> viewModelScope.launch { Push.register(getApplication(), token) } }
         listOf(
             viewModelScope.async { loadHome() },
             viewModelScope.async { loadActiveOrder() },
             viewModelScope.async { refreshRunner() },
         ).awaitAll()
+    }
+
+    /** A notification tapped before the session was restored. */
+    private var pendingPushKind: String? = null
+
+    /** A tapped notification: runners land on their delivery, customers on their order. */
+    fun openFromPush(kind: String?) {
+        if (kind == null) return
+        if (session == null) {
+            pendingPushKind = kind
+            return
+        }
+        chat = null
+        showingProfile = false
+        selectedTab = if (kind == "delivery") AppTab.Run else AppTab.Orders
     }
 
     /** Calls the API as the signed-in user; a 401 signs out. */

@@ -3,11 +3,11 @@ import type { Env } from "./env.ts";
 import { HttpError, json, now, readJSON, text } from "./http.ts";
 import { authenticate } from "./auth.ts";
 
-/** A notification, plus where a tap should land in the app. */
+/** A notification, plus where a tap should land: the customer's order or the runner's delivery. */
 export type Push = {
   title: string;
   body: string;
-  kind: "order" | "delivery" | "chat";
+  kind: "order" | "delivery";
   orderId: string;
 };
 
