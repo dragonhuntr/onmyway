@@ -49,6 +49,7 @@ An order moves `awaiting_payment → matching → accepted → picked_up → del
 - **Delivering:** `pickup` and `deliver` move the order on. Drop-off captures the payment and credits the runner fee + tip in `ledger`. Extra tips from the Delivered screen are separate charges.
 - **Earnings:** `GET /earnings` and `GET /deliveries` add up `ledger`. `POST /payouts` transfers the balance to the runner's Stripe Connect account and sends them to onboarding first.
 - **Cron:** every minute, orders nobody accepted within 20 minutes expire, and the card hold is released.
+- **Push notifications:** after sign-in the app sends its push token to `POST /devices`, tied to that session, so signing out stops pushes to the phone. Customers are notified when a runner takes, picks up, drops off or hands back their order, or when nobody comes; both sides get new chat messages. A tap opens Orders (customers) or Run (runners). iOS pushes go straight to APNs and Android through Firebase Cloud Messaging (`api/src/push.ts`); each is skipped until its credentials are set (see *Push setup*).
 
 ### Running it locally
 
@@ -76,6 +77,24 @@ npm run deploy
 ```
 
 In the Stripe dashboard, add a webhook to `<worker>/stripe/webhook` for `payment_intent.amount_capturable_updated`, `payment_intent.succeeded`, `payment_intent.payment_failed`, and `account.updated`. Enable Connect (Express accounts) for runner payouts. Transfers need available platform balance; in test mode, pay with card `4000 0000 0000 0077` to make funds available right away.
+
+### Push setup
+
+**Android:** create a Firebase project, add an Android app with package `com.onmyway.app`, and put its `google-services.json` in `android/app/`. In Firebase *Project settings → Service accounts*, generate a private key and store the whole JSON file on the Worker:
+
+```sh
+npx wrangler secret put FCM_SERVICE_ACCOUNT < service-account.json
+```
+
+**iOS** needs a paid Apple Developer account. Add the *Push Notifications* capability to the `OnMyWay` target, create an APNs key under *Certificates, Identifiers & Profiles → Keys*, then set:
+
+```sh
+npx wrangler secret put APNS_KEY        # contents of AuthKey_XXXXXXXXXX.p8
+npx wrangler secret put APNS_KEY_ID     # the 10-character key ID
+npx wrangler secret put APNS_TEAM_ID    # your team ID
+```
+
+`APNS_ENVIRONMENT` is `sandbox` for builds run from Xcode; switch it to `production` in `wrangler.jsonc` and `cloudflare.config.ts` for TestFlight and the App Store. To try the in-app banner on a simulator without any of this, use `xcrun simctl push booted com.onmyway.app payload.apns`.
 
 Building coordinates come from OpenStreetMap (`api/migrations/0004_behrend_coordinates.sql`) except Burke, Nick, Otto Behrend Science, Kochel, Hammermill and the Research and Economic Development Center, which are still hand-placed in `0003_behrend_places.sql`. Correct those before trusting detour times to them.
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 enum AppTab: Hashable { case home, orders, run, earnings }
 
@@ -60,6 +61,10 @@ final class AppModel {
         do {
             let account = try await API.currentAccount(token: token)
             session = account.sessionUser
+            if let pendingPushKind {
+                self.pendingPushKind = nil
+                openFromPush(pendingPushKind)
+            }
             await loadSignedIn()
         } catch {
             clearToken()
@@ -112,10 +117,38 @@ final class AppModel {
     }
 
     private func loadSignedIn() async {
+        Task { await requestPush() }
         async let home: Void = loadHome()
         async let order: Void = loadActiveOrder()
         async let runner: Void = refreshRunner()
         _ = await (home, order, runner)
+    }
+
+    // MARK: Push
+
+    /// A notification tapped before the session was restored.
+    private var pendingPushKind: String?
+
+    /// Asks to show notifications, then registers with APNs; the token arrives in `PushDelegate`.
+    private func requestPush() async {
+        let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        if granted { UIApplication.shared.registerForRemoteNotifications() }
+    }
+
+    /// Sends this phone's APNs token to the Worker for the signed-in session.
+    func registerDevice(_ pushToken: String) async {
+        guard token != nil else { return }
+        let _: Empty? = try? await call("POST", "devices", body: ["token": pushToken, "platform": "ios"])
+    }
+
+    /// A tapped notification: runners land on their delivery, customers on their order.
+    func openFromPush(_ kind: String?) {
+        guard let kind else { return }
+        guard session != nil else {
+            pendingPushKind = kind
+            return
+        }
+        selectedTab = kind == "delivery" ? .run : .orders
     }
 
     /// Calls the API as the signed-in user; a 401 signs out.

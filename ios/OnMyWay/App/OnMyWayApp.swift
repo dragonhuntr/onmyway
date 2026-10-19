@@ -3,12 +3,14 @@ import SwiftUI
 @main
 struct OnMyWayApp: App {
     @State private var model = AppModel()
+    @UIApplicationDelegateAdaptor private var push: PushDelegate
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(model)
                 .preferredColorScheme(.light)
+                .onAppear { push.model = model }
         }
     }
 }

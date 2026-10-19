@@ -17,6 +17,7 @@
 		51A494EF233BF9DD256B0520 /* CampusMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C65F7D753F4F29B0FF6B8B3 /* CampusMap.swift */; };
 		86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB6AF243AF2C7269492439E /* OrdersTab.swift */; };
 		B0D6ACE0C68D598C66CCAA41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 84671FD3DDE68757F0198ABA /* Assets.xcassets */; };
+		BC2488D89E9102ED0C045DE1 /* Push.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4407154446E0F362CA35919E /* Push.swift */; };
 		C6B7C701A4D0F4C1B67730C3 /* LocationReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDE1951D7B8AE2C9E7A616B /* LocationReporter.swift */; };
 		C8EB415F54AB6CA821446273 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE0446CFDAD49CF057EAD83 /* Models.swift */; };
 		D3D573D1DF829A41CC75708D /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = 6140B83E601A09B4418F65EB /* StripePaymentSheet */; };
@@ -37,6 +38,7 @@
 		2EE5BEA5048A85FD7078BE7C /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		3315DEF735C7AEC4486F6525 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		3D95ED1011FCBA6752C9DFA3 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		4407154446E0F362CA35919E /* Push.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Push.swift; sourceTree = "<group>"; };
 		555014F4CF40D05B650CAADE /* RunnerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerViews.swift; sourceTree = "<group>"; };
 		5CB6AF243AF2C7269492439E /* OrdersTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrdersTab.swift; sourceTree = "<group>"; };
 		62C0857CE8262A661389A312 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -130,6 +132,7 @@
 				7CDE1951D7B8AE2C9E7A616B /* LocationReporter.swift */,
 				ECE0446CFDAD49CF057EAD83 /* Models.swift */,
 				D00DC0F25C261063AC814181 /* Payments.swift */,
+				4407154446E0F362CA35919E /* Push.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -270,6 +273,7 @@
 				2552E461BF6906235B37B7EB /* Payments.swift in Sources */,
 				40D712252BC3E9B88EC35D05 /* Pickers.swift in Sources */,
 				32D4573E8BAB25D456440242 /* ProfileView.swift in Sources */,
+				BC2488D89E9102ED0C045DE1 /* Push.swift in Sources */,
 				3EA6B1CEB267F8340B69162A /* RunnerViews.swift in Sources */,
 				FA32EB4408724BCE950EA57E /* Theme.swift in Sources */,
 			);
