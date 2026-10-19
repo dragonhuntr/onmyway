@@ -18,6 +18,12 @@ export default defineConfig({
       STRIPE_PUBLISHABLE_KEY: bindings.secret(),
       STRIPE_SECRET_KEY: bindings.secret(),
       STRIPE_WEBHOOK_SECRET: bindings.secret(),
+      APNS_TOPIC: bindings.text("com.onmyway.app"),
+      APNS_ENVIRONMENT: bindings.text("sandbox"),
+      APNS_KEY: bindings.secret(),
+      APNS_KEY_ID: bindings.secret(),
+      APNS_TEAM_ID: bindings.secret(),
+      FCM_SERVICE_ACCOUNT: bindings.secret(),
     },
     // Expire stale orders and idle runners.
     triggers: [triggers.scheduled({ schedule: "* * * * *" })],

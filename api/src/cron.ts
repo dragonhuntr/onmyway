@@ -2,6 +2,7 @@ import type { Env } from "./env.ts";
 import { minutesFromNow, now } from "./http.ts";
 import type { OrderRow } from "./orders.ts";
 import { cancel } from "./orders.ts";
+import { notify } from "./push.ts";
 
 /** Nobody accepted in time. */
 const matchingMinutes = 20;
@@ -21,7 +22,14 @@ export async function sweep(env: Env): Promise<void> {
     .all<OrderRow>();
   for (const order of stale) {
     const reason = order.status === "matching" ? "No runner was heading your way" : "Payment wasn't finished";
-    await cancel(env, order, reason, "expired");
+    if ((await cancel(env, order, reason, "expired")) && order.status === "matching") {
+      await notify(env, order.customer_id, {
+        title: "No runner this time",
+        body: "Nobody was heading your way, so we released the hold on your card.",
+        kind: "order",
+        orderId: order.id,
+      });
+    }
   }
 
   await env.DB.prepare(

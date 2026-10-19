@@ -10,6 +10,16 @@ export interface Env {
   STRIPE_SECRET_KEY?: string;
   STRIPE_PUBLISHABLE_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  /** APNs auth key (.p8 contents), its key ID, and the Apple team ID. iOS pushes are skipped until all three are set. */
+  APNS_KEY?: string;
+  APNS_KEY_ID?: string;
+  APNS_TEAM_ID?: string;
+  /** The app's bundle ID. */
+  APNS_TOPIC: string;
+  /** "sandbox" for Xcode builds, "production" for TestFlight and the App Store. */
+  APNS_ENVIRONMENT: string;
+  /** Firebase service account JSON. Android pushes are skipped until it's set. */
+  FCM_SERVICE_ACCOUNT?: string;
 }
 
 export type User = {

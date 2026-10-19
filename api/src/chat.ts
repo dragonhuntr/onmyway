@@ -2,6 +2,7 @@ import type { Context } from "./http.ts";
 import { HttpError, id, isoDate, json, now, readJSON, text } from "./http.ts";
 import { requireUser } from "./auth.ts";
 import { participantOrder } from "./orders.ts";
+import { notify } from "./push.ts";
 
 /** Chat opens once a runner accepts and stays readable afterwards. */
 const chatStatuses = ["accepted", "picked_up", "delivered"];
@@ -42,5 +43,7 @@ export async function sendMessage(c: Context): Promise<Response> {
   await c.env.DB.prepare("INSERT INTO messages (id, order_id, sender_id, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
     .bind(message.id, order.id, user.id, body, message.createdAt)
     .run();
+  const recipient = user.id === order.customer_id ? order.runner_id : order.customer_id;
+  c.ctx.waitUntil(notify(c.env, recipient, { title: user.first_name, body, kind: "chat", orderId: order.id }));
   return json({ message }, 201);
 }

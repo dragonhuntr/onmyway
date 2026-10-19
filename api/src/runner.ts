@@ -7,6 +7,7 @@ import { walkMiles, walkMinutes } from "./places.ts";
 import type { OrderRow, Places } from "./orders.ts";
 import { orderByID, orderView, participantOrder, pickupAndDropoff, places } from "./orders.ts";
 import { balanceCents, settleDelivery } from "./money.ts";
+import { notify } from "./push.ts";
 
 type TripRow = {
   id: string;
@@ -262,7 +263,16 @@ export async function acceptOrder(c: Context): Promise<Response> {
   await c.env.DB.prepare("UPDATE users SET runner_available = 1, runner_seen_at = ?2 WHERE id = ?1")
     .bind(user.id, now())
     .run();
-  return json({ order: await orderView(c.env, (await orderByID(c.env, c.params.id))!, user) });
+  const order = (await orderByID(c.env, c.params.id))!;
+  c.ctx.waitUntil(
+    notify(c.env, order.customer_id, {
+      title: `${user.first_name} has your order`,
+      body: "They're heading to pick it up. You can message them from the Orders tab.",
+      kind: "order",
+      orderId: order.id,
+    }),
+  );
+  return json({ order: await orderView(c.env, order, user) });
 }
 
 /** POST /orders/:id/pickup */
@@ -281,6 +291,7 @@ export async function confirmDropoff(c: Context): Promise<Response> {
 /** POST /orders/:id/release — runner gives an accepted order back before pickup. */
 export async function releaseOrder(c: Context): Promise<Response> {
   const user = await requireUser(c);
+  const order = await orderByID(c.env, c.params.id);
   const result = await c.env.DB.prepare(
     `UPDATE orders SET status = 'matching', runner_id = NULL, trip_id = NULL, accepted_at = NULL
      WHERE id = ?1 AND runner_id = ?2 AND status = 'accepted'`,
@@ -288,6 +299,14 @@ export async function releaseOrder(c: Context): Promise<Response> {
     .bind(c.params.id, user.id)
     .run();
   if (!result.meta.changes) throw new HttpError(409, "You can only hand back an order before pickup.");
+  c.ctx.waitUntil(
+    notify(c.env, order!.customer_id, {
+      title: "Finding you another runner",
+      body: `${user.first_name} couldn't make it, so your order is back with runners heading your way.`,
+      kind: "order",
+      orderId: order!.id,
+    }),
+  );
   return json({ ok: true });
 }
 
@@ -302,6 +321,17 @@ async function step(c: Context, from: string, to: string, column: "picked_up_at"
     .run();
   if (!result.meta.changes && order.status !== to) {
     throw new HttpError(409, "This order already moved on.", "order_state");
+  }
+  if (result.meta.changes) {
+    c.ctx.waitUntil(
+      notify(c.env, order.customer_id, {
+        ...(to === "picked_up"
+          ? { title: "Your order is on the way", body: `${user.first_name} picked it up and is walking over.` }
+          : { title: "Your order is here", body: `${user.first_name} just dropped it off. Enjoy!` }),
+        kind: "order",
+        orderId: order.id,
+      }),
+    );
   }
   return json({ order: await orderView(c.env, (await orderByID(c.env, order.id))!, user) });
 }

@@ -15,9 +15,12 @@
     "ALLOWED_EMAIL_DOMAIN": "psu.edu",
     "CAMPUS_TIME_ZONE": "America/New_York",
     "DELIVERY_FEE_CENTS": "100",
-    "PAYMENTS": "stripe"
+    "PAYMENTS": "stripe",
+    "APNS_TOPIC": "com.onmyway.app",
+    "APNS_ENVIRONMENT": "sandbox"
   },
-  // Secrets (wrangler secret put): STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
+  // Secrets (wrangler secret put): STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET,
+  // FCM_SERVICE_ACCOUNT, APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID
   "triggers": {
     "crons": ["* * * * *"]
   }

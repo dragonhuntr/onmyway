@@ -95,7 +95,7 @@ export async function userByID(env: Env, userID: string): Promise<User | null> {
   return env.DB.prepare("SELECT * FROM users WHERE id = ?1").bind(userID).first<User>();
 }
 
-async function authenticate(c: Context): Promise<{ user: User; token: string }> {
+export async function authenticate(c: Context): Promise<{ user: User; token: string }> {
   const token = bearer(c.request);
   if (!token) throw new HttpError(401, "Sign in again.", "signed_out");
   const user = await c.env.DB.prepare(

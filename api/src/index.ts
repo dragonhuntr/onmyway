@@ -22,6 +22,7 @@ import { confirmTip, rateOrder } from "./ratings.ts";
 import { cashOut, deliveries, earnings, payoutAccountLink, payoutAccountStatus } from "./money.ts";
 import { connectRefresh, connectReturn, stripeWebhook } from "./webhooks.ts";
 import { sweep } from "./cron.ts";
+import { registerDevice } from "./push.ts";
 
 const router = new Router()
   // Account
@@ -30,6 +31,7 @@ const router = new Router()
   .on("POST", "/logout", logout)
   .on("GET", "/me", me)
   .on("PUT", "/me/destination", setDestination)
+  .on("POST", "/devices", registerDevice)
   // Places
   .on("GET", "/home", home)
   .on("GET", "/buildings", listBuildings)
