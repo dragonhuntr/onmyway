@@ -68,11 +68,8 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Notifications")
 
-            Menu {
-                if let session = model.session {
-                    Text("\(session.firstName) \(session.lastName) · @\(session.username)")
-                }
-                Button("Sign out", role: .destructive) { model.signOut() }
+            NavigationLink {
+                ProfileView()
             } label: {
                 Text(model.session?.firstName.prefix(1).uppercased() ?? "")
                     .font(.title3.weight(.semibold))

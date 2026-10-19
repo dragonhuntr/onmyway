@@ -1,7 +1,6 @@
 package com.onmyway.app.ui.order
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,30 +26,32 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.onmyway.app.R
 import com.onmyway.app.model.AppModel
 import com.onmyway.app.ui.theme.OmwColors
 import com.onmyway.app.ui.theme.OmwType
+import com.onmyway.app.ui.shared.DestinationPicker
 import com.onmyway.app.ui.theme.bold
 
 @Composable
 fun ProfileScreen(model: AppModel) {
     BackHandler { model.showingProfile = false }
 
-    val session = model.session
-    val userName = if (session != null) "${session.firstName} ${session.lastName}".ifBlank { "Wi Ya" } else "Wi Ya"
-    val userEmail = session?.email ?: "wiya@example.com"
+    val session = model.session ?: return
+    val userName = "${session.firstName} ${session.lastName}".trim()
+    var choosingDestination by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -94,14 +96,18 @@ fun ProfileScreen(model: AppModel) {
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
         ) {
-            Image(
-                painter = painterResource(R.drawable.customer_avatar),
-                contentDescription = "Profile picture",
-                contentScale = ContentScale.Crop,
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(160.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-            )
+                    .size(96.dp)
+                    .background(OmwColors.AmberSoft, CircleShape),
+            ) {
+                Text(
+                    text = session.firstName.take(1).uppercase(),
+                    style = OmwType.LargeTitle.bold,
+                    color = OmwColors.BrandDeep,
+                )
+            }
 
             Spacer(Modifier.height(14.dp))
 
@@ -110,32 +116,31 @@ fun ProfileScreen(model: AppModel) {
                 style = OmwType.Title2.bold.copy(fontSize = 28.sp),
                 color = OmwColors.Ink,
             )
+            Text(
+                text = "@${session.username}",
+                style = OmwType.Subheadline,
+                color = OmwColors.InkSecondary,
+            )
         }
 
         Spacer(Modifier.height(20.dp))
 
-        // Personal Details Section
         CardSection(
-            title = "Personal Details",
+            title = "Account",
             items = listOf(
-                "Email" to userEmail,
-                "Phone" to "+1 (555) 012-3456",
-                "Location" to "San Francisco, CA",
+                "Name" to userName,
+                "Username" to "@${session.username}",
+                "Email" to session.email,
             ),
         )
 
         Spacer(Modifier.height(16.dp))
 
-        // Preferences Section
         CardSection(
-            title = "Preferences",
-            items = listOf(
-                "Delivery Radius" to "5 miles",
-                "Payment Method" to "Apple Pay",
-                "Notifications" to "Enabled",
-                "Dietary preferences" to "Not set",
-                "Favorite cuisines" to "Not set",
-            ),
+            title = "Delivery",
+            items = listOf("Deliver to" to (model.destination?.full ?: "Not set")),
+            onClick = { choosingDestination = true },
+            onClickLabel = "Change delivery location",
         )
 
         Spacer(Modifier.height(28.dp))
@@ -164,19 +169,26 @@ fun ProfileScreen(model: AppModel) {
             }
         }
     }
+
+    if (choosingDestination) DestinationPicker(model) { choosingDestination = false }
 }
 
 @Composable
 private fun CardSection(
     title: String,
     items: List<Pair<String, String>>,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Column(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .background(Color.White, RoundedCornerShape(20.dp))
+            .background(Color.White, shape)
+            .clip(shape)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClickLabel = onClickLabel, onClick = onClick) else Modifier)
             .padding(20.dp),
     ) {
         Text(

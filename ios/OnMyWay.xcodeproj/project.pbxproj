@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0011865A1D98E9D66F8068C9 /* EarningsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6618A1AC9070897088AE662 /* EarningsView.swift */; };
 		2552E461BF6906235B37B7EB /* Payments.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00DC0F25C261063AC814181 /* Payments.swift */; };
+		32D4573E8BAB25D456440242 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D95ED1011FCBA6752C9DFA3 /* ProfileView.swift */; };
 		3EA6B1CEB267F8340B69162A /* RunnerViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 555014F4CF40D05B650CAADE /* RunnerViews.swift */; };
 		40D712252BC3E9B88EC35D05 /* Pickers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103FB3916FF3E3036EE20912 /* Pickers.swift */; };
 		42B9D2271D4CC38F408F13C9 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3315DEF735C7AEC4486F6525 /* AppModel.swift */; };
@@ -35,6 +36,7 @@
 		2622B47B1906F4AD303AC72F /* OnMyWay.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OnMyWay.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EE5BEA5048A85FD7078BE7C /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		3315DEF735C7AEC4486F6525 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		3D95ED1011FCBA6752C9DFA3 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		555014F4CF40D05B650CAADE /* RunnerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerViews.swift; sourceTree = "<group>"; };
 		5CB6AF243AF2C7269492439E /* OrdersTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrdersTab.swift; sourceTree = "<group>"; };
 		62C0857CE8262A661389A312 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 				62C0857CE8262A661389A312 /* HomeView.swift */,
 				0FC632FCD6A8B0107E85AA77 /* OrderFlow.swift */,
 				5CB6AF243AF2C7269492439E /* OrdersTab.swift */,
+				3D95ED1011FCBA6752C9DFA3 /* ProfileView.swift */,
 			);
 			path = Order;
 			sourceTree = "<group>";
@@ -266,6 +269,7 @@
 				86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */,
 				2552E461BF6906235B37B7EB /* Payments.swift in Sources */,
 				40D712252BC3E9B88EC35D05 /* Pickers.swift in Sources */,
+				32D4573E8BAB25D456440242 /* ProfileView.swift in Sources */,
 				3EA6B1CEB267F8340B69162A /* RunnerViews.swift in Sources */,
 				FA32EB4408724BCE950EA57E /* Theme.swift in Sources */,
 			);
