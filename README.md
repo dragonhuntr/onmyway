@@ -77,7 +77,7 @@ npm run deploy
 
 In the Stripe dashboard, add a webhook to `<worker>/stripe/webhook` for `payment_intent.amount_capturable_updated`, `payment_intent.succeeded`, `payment_intent.payment_failed`, and `account.updated`. Enable Connect (Express accounts) for runner payouts. Transfers need available platform balance; in test mode, pay with card `4000 0000 0000 0077` to make funds available right away.
 
-Building coordinates in `api/migrations/0003_behrend_places.sql` are approximate. Correct them before trusting detour times.
+Building coordinates come from OpenStreetMap (`api/migrations/0004_behrend_coordinates.sql`) except Burke, Nick, Otto Behrend Science, Kochel, Hammermill and the Research and Economic Development Center, which are still hand-placed in `0003_behrend_places.sql`. Correct those before trusting detour times to them.
 
 ## Requirements
 
