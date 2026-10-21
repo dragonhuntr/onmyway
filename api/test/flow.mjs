@@ -152,7 +152,40 @@ await call("POST", `/orders/${second.order.id}/release`, { token: wiya.token });
 assert.equal((await call("GET", `/orders/${second.order.id}`, { token: evan.token })).order.status, "matching");
 assert.equal((await call("POST", `/orders/${second.order.id}/cancel`, { token: evan.token })).order.status, "cancelled");
 
-await call("POST", "/logout", { token: evan.token });
+// Notifications: order updates are kept for the bell, chat messages aren't
+let inbox;
+for (let tries = 0; tries < 20; tries++) {
+  inbox = await call("GET", "/notifications", { token: evan.token });
+  if (inbox.notifications.length >= 4) break;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
+const titles = inbox.notifications.map((n) => n.title);
+assert.ok(titles.includes("Your order is here"), titles.join(", "));
+assert.ok(titles.includes("Finding you another runner"));
+assert.ok(!titles.includes("WiYa"));
+assert.equal(inbox.unread, inbox.notifications.length);
+await call("POST", "/notifications/read", { token: evan.token });
+assert.equal((await call("GET", "/notifications", { token: evan.token })).unread, 0);
+
+// Deleting an account: blocked while an order is open, then wipes the sign-in and frees the email
+const third = await call("POST", "/orders", {
+  token: evan.token,
+  body: { restaurantId: "paws", orderNumber: "5001", tipCents: 0 },
+  expect: 201,
+});
+assert.equal((await call("DELETE", "/me", { token: evan.token, expect: 409 })).code, "account_busy");
+await call("POST", `/orders/${third.order.id}/cancel`, { token: evan.token });
+await call("DELETE", "/me", { token: evan.token });
 await call("GET", "/me", { token: evan.token, expect: 401 });
+await call("POST", "/login", { body: { username: evan.username, password: "password123" }, expect: 401 });
+await call("POST", "/register", {
+  body: { email: `${evan.username}@psu.edu`, username: evan.username, firstName: "Evan", lastName: "Brooks", password: "password123" },
+});
+await call("DELETE", "/me", { token: wiya.token });
+assert.equal((await call("GET", "/me", { token: relogin.token, expect: 401 })).code, "signed_out");
+
+const sam = await person("Sam", "Ortiz");
+await call("POST", "/logout", { token: sam.token });
+await call("GET", "/me", { token: sam.token, expect: 401 });
 
 console.log("✓ delivery flow passed");

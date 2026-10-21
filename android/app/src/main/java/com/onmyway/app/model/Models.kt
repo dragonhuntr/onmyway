@@ -281,6 +281,18 @@ data class Earnings(
 
 data class DailyEarning(val day: String, val index: Int, val amount: Double)
 
+/** An order update kept for the bell on Home; chat messages aren't included. */
+@Serializable
+data class AppNotification(
+    val id: String,
+    val title: String,
+    val body: String,
+    /** "order" for the customer's order, "delivery" for the runner's. */
+    val kind: String,
+    @Serializable(InstantSerializer::class) val createdAt: Instant,
+    val read: Boolean,
+)
+
 @Serializable
 data class ChatMessage(
     val id: String,

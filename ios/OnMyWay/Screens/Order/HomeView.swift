@@ -5,6 +5,7 @@ struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
     @State private var choosingDestination = false
+    @State private var showingNotifications = false
 
     private var results: [Restaurant] {
         guard !query.isEmpty else { return model.restaurants }
@@ -13,28 +14,39 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    searchField
-                    if query.isEmpty { runnerBanner }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
+            ScrollViewReader { scroller in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
+                        searchField
+                        if query.isEmpty { runnerBanner }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
 
-                if results.isEmpty {
-                    ContentUnavailableView.search(text: query).padding(.top, 40)
-                } else {
-                    if results.contains(where: { $0.hours.isOpen() }) { openNow }
-                    popular
+                    if results.isEmpty {
+                        ContentUnavailableView.search(text: query).padding(.top, 40)
+                    } else {
+                        if results.contains(where: { $0.hours.isOpen() }) {
+                            openNow { withAnimation { scroller.scrollTo(allDiningID, anchor: .top) } }
+                        }
+                        popular.id(allDiningID)
+                    }
                 }
             }
             .background(Color.canvas)
             .toolbarVisibility(.hidden, for: .navigationBar)
-            .refreshable { await model.loadHome() }
-            .task { await model.loadHome() }
+            .refreshable { await reload() }
+            .task { await reload() }
             .sheet(isPresented: $choosingDestination) { DestinationPicker() }
+            .sheet(isPresented: $showingNotifications) { NotificationsView() }
         }
+    }
+
+    private func reload() async {
+        async let home: Void = model.loadHome()
+        async let inbox: Void = model.loadNotifications()
+        _ = await (home, inbox)
     }
 
     private var header: some View {
@@ -59,14 +71,23 @@ struct HomeView: View {
 
             Spacer()
 
-            Button(action: { /* TODO: notifications */ }) {
+            Button { showingNotifications = true } label: {
                 Image(.bell).resizable().frame(width: 22, height: 22)
                     .frame(width: 44, height: 44)
                     .background(.white, in: .circle)
                     .overlay(Circle().strokeBorder(Color.hairline))
+                    .overlay(alignment: .topTrailing) {
+                        if model.unreadNotifications > 0 {
+                            Circle().fill(Color.amber)
+                                .frame(width: 12, height: 12)
+                                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                                .offset(x: -2, y: 2)
+                        }
+                    }
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Notifications")
+            .accessibilityValue(model.unreadNotifications > 0 ? "\(model.unreadNotifications) unread" : "")
 
             NavigationLink {
                 ProfileView()
@@ -116,12 +137,15 @@ struct HomeView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var openNow: some View {
+    private let allDiningID = "allDining"
+
+    /// `seeAll` scrolls down to the full list.
+    private func openNow(seeAll: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Open now on campus").font(.headline).foregroundStyle(Color.ink)
                 Spacer()
-                Button("See all", action: { /* TODO: all restaurants */ })
+                Button("See all", action: seeAll)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.brand)
             }

@@ -288,6 +288,17 @@ struct ChatMessage: Decodable, Identifiable, Hashable, Sendable {
     let fromMe: Bool
 }
 
+/// An order update kept for the bell on Home; chat messages aren't included.
+struct AppNotification: Decodable, Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let body: String
+    /// "order" for the customer's order, "delivery" for the runner's.
+    let kind: String
+    let createdAt: Date
+    let read: Bool
+}
+
 /// What Stripe's PaymentSheet needs; returned when an order or extra tip has to be paid.
 struct PaymentSheetConfig: Decodable, Sendable {
     let paymentIntentClientSecret: String

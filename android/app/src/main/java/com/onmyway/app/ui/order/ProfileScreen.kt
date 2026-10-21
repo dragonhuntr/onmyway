@@ -22,12 +22,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,11 +43,14 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onmyway.app.model.ApiException
 import com.onmyway.app.model.AppModel
+import com.onmyway.app.ui.shared.DestinationPicker
 import com.onmyway.app.ui.theme.OmwColors
 import com.onmyway.app.ui.theme.OmwType
-import com.onmyway.app.ui.shared.DestinationPicker
 import com.onmyway.app.ui.theme.bold
+import com.onmyway.app.ui.theme.semibold
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(model: AppModel) {
@@ -52,6 +59,10 @@ fun ProfileScreen(model: AppModel) {
     val session = model.session ?: return
     val userName = "${session.firstName} ${session.lastName}".trim()
     var choosingDestination by rememberSaveable { mutableStateOf(false) }
+    var confirmingDelete by rememberSaveable { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -150,7 +161,7 @@ fun ProfileScreen(model: AppModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
+                .padding(bottom = 8.dp),
         ) {
             Box(
                 contentAlignment = Alignment.Center,
@@ -168,9 +179,52 @@ fun ProfileScreen(model: AppModel) {
                 )
             }
         }
+
+        TextButton(
+            onClick = { confirmingDelete = true },
+            enabled = !deleting,
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 24.dp),
+        ) {
+            Text("Delete Account", style = OmwType.Subheadline.semibold, color = Color(0xFFC62828))
+        }
     }
 
     if (choosingDestination) DestinationPicker(model) { choosingDestination = false }
+
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            confirmButton = {
+                TextButton({
+                    confirmingDelete = false
+                    deleting = true
+                    scope.launch {
+                        try {
+                            model.deleteAccount()
+                        } catch (e: ApiException) {
+                            deleteError = e.message
+                        } finally {
+                            deleting = false
+                        }
+                    }
+                }) { Text("Delete Account", color = Color(0xFFC62828)) }
+            },
+            dismissButton = { TextButton({ confirmingDelete = false }) { Text("Cancel") } },
+            title = { Text("Delete your account?") },
+            text = { Text("Your name, email, password and saved places are erased and you’re signed out. This can’t be undone.") },
+            containerColor = Color.White,
+        )
+    }
+
+    deleteError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { deleteError = null },
+            confirmButton = { TextButton({ deleteError = null }) { Text("OK") } },
+            title = { Text("Can’t delete yet") },
+            text = { Text(error) },
+            containerColor = Color.White,
+        )
+    }
 }
 
 @Composable

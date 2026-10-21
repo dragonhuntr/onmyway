@@ -1,9 +1,12 @@
 import SwiftUI
 
-/// Profile — account details, delivery location, and sign out.
+/// Profile — account details, delivery location, sign out, and deleting the account.
 struct ProfileView: View {
     @Environment(AppModel.self) private var model
     @State private var choosingDestination = false
+    @State private var confirmingDelete = false
+    @State private var deleting = false
+    @State private var deleteError: String?
 
     var body: some View {
         if let session = model.session {
@@ -35,6 +38,11 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("Change delivery location")
+
+                    Button("Delete Account", role: .destructive) { confirmingDelete = true }
+                        .font(.subheadline.weight(.semibold))
+                        .disabled(deleting)
+                        .padding(.top, 8)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -45,9 +53,31 @@ struct ProfileView: View {
             .toolbarVisibility(.visible, for: .navigationBar)
             .toolbarVisibility(.hidden, for: .tabBar)
             .sheet(isPresented: $choosingDestination) { DestinationPicker() }
+            .confirmationDialog("Delete your account?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete Account", role: .destructive) { delete() }
+            } message: {
+                Text("Your name, email, password and saved places are erased and you’re signed out. This can’t be undone.")
+            }
+            .alert("Can’t delete yet", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deleteError ?? "")
+            }
             .footer {
                 Button("Log Out") { model.signOut() }
                     .buttonStyle(.primaryCTA)
+            }
+        }
+    }
+
+    private func delete() {
+        deleting = true
+        Task {
+            defer { deleting = false }
+            do {
+                try await model.deleteAccount()
+            } catch {
+                deleteError = error.localizedDescription
             }
         }
     }

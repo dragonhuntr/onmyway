@@ -1,6 +1,6 @@
 import type { Context } from "./http.ts";
 import type { Env } from "./env.ts";
-import { HttpError, json, now, readJSON, text } from "./http.ts";
+import { HttpError, id, json, now, readJSON, text } from "./http.ts";
 import { authenticate } from "./auth.ts";
 
 /** A notification, plus where a tap should land: the customer's order or the runner's delivery. */
@@ -9,6 +9,18 @@ export type Push = {
   body: string;
   kind: "order" | "delivery";
   orderId: string;
+  /** Chat messages are pushed but left out of the bell's list. */
+  chat?: boolean;
+};
+
+type NotificationRow = {
+  id: string;
+  title: string;
+  body: string;
+  kind: "order" | "delivery";
+  order_id: string | null;
+  created_at: string;
+  read_at: string | null;
 };
 
 type Device = { token: string; platform: "ios" | "android" };
@@ -31,9 +43,51 @@ export async function registerDevice(c: Context): Promise<Response> {
   return json({ ok: true }, 201);
 }
 
-/** Sends `push` to every phone the user is signed in on. Never throws; platforms without credentials are skipped. */
+/** GET /notifications — the latest 50 for the bell on Home, newest first. */
+export async function listNotifications(c: Context): Promise<Response> {
+  const { user } = await authenticate(c);
+  const { results } = await c.env.DB.prepare(
+    "SELECT * FROM notifications WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50",
+  )
+    .bind(user.id)
+    .all<NotificationRow>();
+  return json({
+    notifications: results.map((row) => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      kind: row.kind,
+      orderId: row.order_id,
+      createdAt: row.created_at,
+      read: row.read_at !== null,
+    })),
+    unread: results.filter((row) => row.read_at === null).length,
+  });
+}
+
+/** POST /notifications/read — marks everything read, sent when the bell's list is opened. */
+export async function readNotifications(c: Context): Promise<Response> {
+  const { user } = await authenticate(c);
+  await c.env.DB.prepare("UPDATE notifications SET read_at = ?2 WHERE user_id = ?1 AND read_at IS NULL")
+    .bind(user.id, now())
+    .run();
+  return json({ ok: true });
+}
+
+/**
+ * Sends `push` to every phone the user is signed in on, and keeps it for the bell unless it's a chat message.
+ * Never throws; platforms without credentials are skipped.
+ */
 export async function notify(env: Env, userID: string | null, push: Push): Promise<void> {
   if (!userID) return;
+  if (!push.chat) {
+    await env.DB.prepare(
+      "INSERT INTO notifications (id, user_id, title, body, kind, order_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    )
+      .bind(id(), userID, push.title, push.body, push.kind, push.orderId, now())
+      .run()
+      .catch((error) => console.warn("Saving notification failed", error));
+  }
   const { results } = await env.DB.prepare("SELECT token, platform FROM devices WHERE user_id = ?1")
     .bind(userID)
     .all<Device>();

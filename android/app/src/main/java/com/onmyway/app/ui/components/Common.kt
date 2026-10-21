@@ -24,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
@@ -156,6 +157,7 @@ fun RefreshableColumn(
     onRefresh: suspend () -> Unit,
     modifier: Modifier = Modifier,
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    scrollState: ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var isRefreshing by remember { mutableStateOf(false) }
@@ -173,7 +175,7 @@ fun RefreshableColumn(
     ) {
         Column(
             verticalArrangement = verticalArrangement,
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
             content = content,
         )
     }

@@ -50,6 +50,7 @@ export async function sendMessage(c: Context): Promise<Response> {
       body,
       kind: toRunner ? "delivery" : "order",
       orderId: order.id,
+      chat: true,
     }),
   );
   return json({ message }, 201);

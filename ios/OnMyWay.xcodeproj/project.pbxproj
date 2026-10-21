@@ -18,6 +18,7 @@
 		86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB6AF243AF2C7269492439E /* OrdersTab.swift */; };
 		B0D6ACE0C68D598C66CCAA41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 84671FD3DDE68757F0198ABA /* Assets.xcassets */; };
 		BC2488D89E9102ED0C045DE1 /* Push.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4407154446E0F362CA35919E /* Push.swift */; };
+		BFC4823700BADB1981B3459C /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57486FD37D8AAE92C0C7E83 /* NotificationsView.swift */; };
 		C6B7C701A4D0F4C1B67730C3 /* LocationReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDE1951D7B8AE2C9E7A616B /* LocationReporter.swift */; };
 		C8EB415F54AB6CA821446273 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE0446CFDAD49CF057EAD83 /* Models.swift */; };
 		D3D573D1DF829A41CC75708D /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = 6140B83E601A09B4418F65EB /* StripePaymentSheet */; };
@@ -45,6 +46,7 @@
 		7CDE1951D7B8AE2C9E7A616B /* LocationReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationReporter.swift; sourceTree = "<group>"; };
 		822C6C93360658CE174D0ED8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		84671FD3DDE68757F0198ABA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A57486FD37D8AAE92C0C7E83 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		C6618A1AC9070897088AE662 /* EarningsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarningsView.swift; sourceTree = "<group>"; };
 		D00DC0F25C261063AC814181 /* Payments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Payments.swift; sourceTree = "<group>"; };
 		DAB28E3BE9D2418AE569D1C3 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
@@ -141,6 +143,7 @@
 			isa = PBXGroup;
 			children = (
 				2EE5BEA5048A85FD7078BE7C /* ChatView.swift */,
+				A57486FD37D8AAE92C0C7E83 /* NotificationsView.swift */,
 				103FB3916FF3E3036EE20912 /* Pickers.swift */,
 			);
 			path = Shared;
@@ -267,6 +270,7 @@
 				DD532022C7B317FB5638D5AA /* HomeView.swift in Sources */,
 				C6B7C701A4D0F4C1B67730C3 /* LocationReporter.swift in Sources */,
 				C8EB415F54AB6CA821446273 /* Models.swift in Sources */,
+				BFC4823700BADB1981B3459C /* NotificationsView.swift in Sources */,
 				F4A9C7D4CC2B846FC8413101 /* OnMyWayApp.swift in Sources */,
 				DFD2F1FDD65A62DBC334D862 /* OrderFlow.swift in Sources */,
 				86456070DF8368CD7F7B5A45 /* OrdersTab.swift in Sources */,

@@ -58,6 +58,14 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     var chat by mutableStateOf<ChatTarget?>(null)
     /** True when the profile screen full-screen cover is open. */
     var showingProfile by mutableStateOf(false)
+    /** True when the bell's list full-screen cover is open. */
+    var showingNotifications by mutableStateOf(false)
+
+    /** Order updates for the bell on Home, newest first. */
+    var notifications by mutableStateOf<List<AppNotification>>(emptyList())
+        private set
+    var unreadNotifications by mutableIntStateOf(0)
+        private set
 
     // Customer side
     var destination by mutableStateOf<Destination?>(null)
@@ -127,7 +135,23 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     fun signOut() {
         val token = token
         viewModelScope.launch { runCatching { Api.send<Empty>("POST", "logout", token = token) } }
+        clearSignedIn()
+    }
+
+    /**
+     * Wipes the account on the server, then signs out here. Throws the server's reason when it can't yet,
+     * e.g. an open order or money left to cash out.
+     */
+    suspend fun deleteAccount() {
+        call<Empty>("DELETE", "me")
+        clearSignedIn()
+    }
+
+    private fun clearSignedIn() {
         orderWatch?.cancel()
+        notifications = emptyList()
+        unreadNotifications = 0
+        showingNotifications = false
         session = null
         activeOrder = null
         deliveredOrder = null
@@ -158,7 +182,26 @@ class AppModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.async { loadHome() },
             viewModelScope.async { loadActiveOrder() },
             viewModelScope.async { refreshRunner() },
+            viewModelScope.async { loadNotifications() },
         ).awaitAll()
+    }
+
+    // Notifications
+
+    @Serializable
+    private data class NotificationsResponse(val notifications: List<AppNotification>, val unread: Int)
+
+    suspend fun loadNotifications() {
+        val response = tryCall<NotificationsResponse>("GET", "notifications") ?: return
+        notifications = response.notifications
+        unreadNotifications = response.unread
+    }
+
+    /** Called when the list is opened; the rows keep their unread look until it's next loaded. */
+    suspend fun markNotificationsRead() {
+        if (unreadNotifications == 0) return
+        unreadNotifications = 0
+        tryCall<Empty>("POST", "notifications/read")
     }
 
     /** A notification tapped before the session was restored. */
@@ -173,6 +216,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         }
         chat = null
         showingProfile = false
+        showingNotifications = false
         selectedTab = if (kind == "delivery") AppTab.Run else AppTab.Orders
     }
 

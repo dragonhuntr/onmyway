@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -30,7 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,11 +44,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -62,6 +70,8 @@ import com.onmyway.app.ui.theme.bold
 import com.onmyway.app.ui.theme.card
 import com.onmyway.app.ui.theme.medium
 import com.onmyway.app.ui.theme.semibold
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 /** 01_Home — pick a dining hall; students already walking your way deliver it for $1. */
@@ -74,10 +84,22 @@ fun HomeScreen(model: AppModel) {
     }
     val open = results.filter { it.hours.isOpen() }
 
-    LaunchedEffect(Unit) { model.loadHome() }
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    /** Where "All dining" starts in the scrolling column, for "See all". */
+    var allDiningTop by remember { mutableIntStateOf(0) }
+    val reload: suspend () -> Unit = {
+        coroutineScope {
+            launch { model.loadHome() }
+            launch { model.loadNotifications() }
+        }
+    }
+
+    LaunchedEffect(Unit) { reload() }
 
     RefreshableColumn(
-        onRefresh = model::loadHome,
+        onRefresh = reload,
+        scrollState = scroll,
         modifier = Modifier.fillMaxSize().background(OmwColors.Canvas).statusBarsPadding(),
     ) {
         Column(
@@ -97,8 +119,12 @@ fun HomeScreen(model: AppModel) {
                 modifier = Modifier.padding(top = 40.dp),
             )
         } else {
-            if (open.isNotEmpty()) OpenNow(open) { model.orderingFrom = it }
-            AllDining(results) { model.orderingFrom = it }
+            if (open.isNotEmpty()) {
+                OpenNow(open, onSeeAll = { scope.launch { scroll.animateScrollTo(allDiningTop) } }) { model.orderingFrom = it }
+            }
+            AllDining(results, Modifier.onGloballyPositioned { allDiningTop = it.positionInParent().y.toInt() }) {
+                model.orderingFrom = it
+            }
         }
     }
 
@@ -125,14 +151,31 @@ private fun Header(model: AppModel, onChooseDestination: () -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        IconBadge(
-            R.drawable.bell, iconSize = 22.dp, badgeSize = 44.dp, background = Color.White,
-            border = BorderStroke(1.dp, OmwColors.Hairline),
-            modifier = Modifier
+        val unread = model.unreadNotifications
+        Box(
+            Modifier
                 .clip(CircleShape)
-                .clickable(role = Role.Button) { /* TODO: notifications */ }
-                .semantics { contentDescription = "Notifications" },
-        )
+                .clickable(role = Role.Button) { model.showingNotifications = true }
+                .clearAndSetSemantics {
+                    contentDescription = "Notifications"
+                    if (unread > 0) stateDescription = "$unread unread"
+                },
+        ) {
+            IconBadge(
+                R.drawable.bell, iconSize = 22.dp, badgeSize = 44.dp, background = Color.White,
+                border = BorderStroke(1.dp, OmwColors.Hairline),
+            )
+            if (unread > 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-2).dp, y = 2.dp)
+                        .size(12.dp)
+                        .background(OmwColors.Amber, CircleShape)
+                        .border(2.dp, Color.White, CircleShape),
+                )
+            }
+        }
 
         ProfileMenu(model)
     }
@@ -216,12 +259,12 @@ private fun RunnerBanner(model: AppModel) {
 }
 
 @Composable
-private fun OpenNow(open: List<Restaurant>, onSelect: (Restaurant) -> Unit) {
+private fun OpenNow(open: List<Restaurant>, onSeeAll: () -> Unit, onSelect: (Restaurant) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 20.dp)) {
             Text("Open now on campus", style = OmwType.Headline, color = OmwColors.Ink)
             Spacer(Modifier.weight(1f))
-            LinkButton("See all") { /* TODO: all restaurants */ }
+            LinkButton("See all", onClick = onSeeAll)
         }
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -235,8 +278,8 @@ private fun OpenNow(open: List<Restaurant>, onSelect: (Restaurant) -> Unit) {
 }
 
 @Composable
-private fun AllDining(results: List<Restaurant>, onSelect: (Restaurant) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(20.dp)) {
+private fun AllDining(results: List<Restaurant>, modifier: Modifier = Modifier, onSelect: (Restaurant) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier.padding(20.dp)) {
         Text("All dining", style = OmwType.Headline, color = OmwColors.Ink)
         results.forEach { restaurant ->
             RestaurantRow(restaurant) { onSelect(restaurant) }

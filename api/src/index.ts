@@ -1,6 +1,6 @@
 import type { Env } from "./env.ts";
 import { HttpError, Router, cors, json } from "./http.ts";
-import { login, logout, me, register } from "./auth.ts";
+import { deleteAccount, login, logout, me, register } from "./auth.ts";
 import { home, listBuildings, setDestination } from "./places.ts";
 import { activeOrder, cancelOrder, confirmPayment, createOrder, getOrder, listOrders, reportOrder } from "./orders.ts";
 import {
@@ -22,7 +22,7 @@ import { confirmTip, rateOrder } from "./ratings.ts";
 import { cashOut, deliveries, earnings, payoutAccountLink, payoutAccountStatus } from "./money.ts";
 import { connectRefresh, connectReturn, stripeWebhook } from "./webhooks.ts";
 import { sweep } from "./cron.ts";
-import { registerDevice } from "./push.ts";
+import { listNotifications, readNotifications, registerDevice } from "./push.ts";
 
 const router = new Router()
   // Account
@@ -30,8 +30,11 @@ const router = new Router()
   .on("POST", "/login", login)
   .on("POST", "/logout", logout)
   .on("GET", "/me", me)
+  .on("DELETE", "/me", deleteAccount)
   .on("PUT", "/me/destination", setDestination)
   .on("POST", "/devices", registerDevice)
+  .on("GET", "/notifications", listNotifications)
+  .on("POST", "/notifications/read", readNotifications)
   // Places
   .on("GET", "/home", home)
   .on("GET", "/buildings", listBuildings)

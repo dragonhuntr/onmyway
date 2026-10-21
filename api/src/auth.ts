@@ -1,5 +1,6 @@
 import type { Context } from "./http.ts";
 import type { Env, User } from "./env.ts";
+import { balanceCents } from "./money.ts";
 import { HttpError, decodeBase64, encodeBase64, json, minutesFromNow, now, readJSON, text } from "./http.ts";
 
 const iterations = 100_000;
@@ -72,6 +73,49 @@ export async function me(c: Context): Promise<Response> {
 export async function logout(c: Context): Promise<Response> {
   const token = bearer(c.request);
   if (token) await c.env.DB.prepare("DELETE FROM sessions WHERE token = ?1").bind(token).run();
+  return json({ ok: true });
+}
+
+/**
+ * DELETE /me — wipes the account: name, email, password, saved drop-off, trips and sign-ins.
+ * The row stays (as "Deleted account") so past orders and the ledger still add up for the other side.
+ */
+export async function deleteAccount(c: Context): Promise<Response> {
+  const { user } = await authenticate(c);
+  const busy = await c.env.DB.prepare(
+    `SELECT customer_id = ?1 AS mine FROM orders
+     WHERE (customer_id = ?1 AND status IN ('awaiting_payment', 'matching', 'accepted', 'picked_up'))
+        OR (runner_id = ?1 AND status IN ('accepted', 'picked_up'))
+     LIMIT 1`,
+  )
+    .bind(user.id)
+    .first<{ mine: number }>();
+  if (busy) {
+    throw new HttpError(
+      409,
+      busy.mine ? "Cancel or finish your current order first." : "Finish your current delivery first.",
+      "account_busy",
+    );
+  }
+  const balance = await balanceCents(c.env, user.id);
+  if (balance > 0) {
+    throw new HttpError(409, `Cash out your $${(balance / 100).toFixed(2)} in Earnings first.`, "balance_left");
+  }
+
+  const at = now();
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `UPDATE users SET username = 'deleted-' || id, email = 'deleted-' || id || '@deleted.invalid',
+         first_name = 'Deleted', last_name = 'account', password_hash = '', password_salt = '',
+         stripe_customer_id = NULL, blurb = '', dropoff_building_id = NULL, dropoff_room = '', dropoff_note = '',
+         runner_available = 0, runner_lat = NULL, runner_lng = NULL, deleted_at = ?2
+       WHERE id = ?1`,
+    ).bind(user.id, at),
+    c.env.DB.prepare("UPDATE trips SET cancelled_at = ?2 WHERE runner_id = ?1 AND cancelled_at IS NULL").bind(user.id, at),
+    c.env.DB.prepare("DELETE FROM notifications WHERE user_id = ?1").bind(user.id),
+    c.env.DB.prepare("DELETE FROM devices WHERE user_id = ?1").bind(user.id),
+    c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(user.id),
+  ]);
   return json({ ok: true });
 }
 

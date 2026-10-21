@@ -24,6 +24,8 @@ Built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv
 | 08 | Delivery request | `Screens/Run/RunnerViews.swift` | `run/RunnerScreens.kt` |
 | 09 | Active delivery | `Screens/Run/RunnerViews.swift` | `run/RunnerScreens.kt` |
 | 10 | Earnings | `Screens/Earnings/EarningsView.swift` | `earnings/EarningsScreen.kt` |
+| — | Profile (sign out, delete account) | `Screens/Order/ProfileView.swift` | `order/ProfileScreen.kt` |
+| — | Notifications (bell on Home) | `Screens/Shared/NotificationsView.swift` | `shared/NotificationsScreen.kt` |
 | — | Chat, destination + trip pickers | `Screens/Shared/` | `shared/` |
 
 ## Flows
@@ -41,6 +43,7 @@ The app talks only to the Worker in `api/src/index.ts`, deployed at `https://onm
 - **Register** (`POST /register`) stores the account in `users`. The password is a PBKDF2 hash, not the password itself. A random token is stored in `sessions` and returned to the app.
 - **Login** (`POST /login`) looks up the username, checks the password, stores a new `sessions` token, and returns it.
 - The app saves that token. On the next launch it sends the token to `GET /me` and restores the account. Tokens last 30 days; `POST /logout` ends one.
+- **Delete account** (`DELETE /me`, from Profile) is refused while the person has an open order or delivery, or money left to cash out. Otherwise it wipes the name, email, password, saved drop-off and trips and ends every sign-in. The `users` row stays as "Deleted account" so past orders and the ledger still add up for the other person, and the email can register again.
 
 An order moves `awaiting_payment → matching → accepted → picked_up → delivered`, or ends `cancelled` / `expired`.
 
@@ -49,7 +52,7 @@ An order moves `awaiting_payment → matching → accepted → picked_up → del
 - **Delivering:** `pickup` and `deliver` move the order on. Drop-off captures the payment and credits the runner fee + tip in `ledger`. Extra tips from the Delivered screen are separate charges.
 - **Earnings:** `GET /earnings` and `GET /deliveries` add up `ledger`. `POST /payouts` transfers the balance to the runner's Stripe Connect account and sends them to onboarding first.
 - **Cron:** every minute, orders nobody accepted within 20 minutes expire, and the card hold is released.
-- **Push notifications:** after sign-in the app sends its push token to `POST /devices`, tied to that session, so signing out stops pushes to the phone. Customers are notified when a runner takes, picks up, drops off or hands back their order, or when nobody comes; both sides get new chat messages. A tap opens Orders (customers) or Run (runners). iOS pushes go straight to APNs and Android through Firebase Cloud Messaging (`api/src/push.ts`); each is skipped until its credentials are set (see *Push setup*).
+- **Push notifications:** after sign-in the app sends its push token to `POST /devices`, tied to that session, so signing out stops pushes to the phone. Customers are notified when a runner takes, picks up, drops off or hands back their order, or when nobody comes; both sides get new chat messages. A tap opens Orders (customers) or Run (runners). Order updates (not chat) are also kept in `notifications`, which the bell on Home lists through `GET /notifications`; opening it calls `POST /notifications/read`. iOS pushes go straight to APNs and Android through Firebase Cloud Messaging (`api/src/push.ts`); each is skipped until its credentials are set (see *Push setup*).
 
 ### Running it locally
 

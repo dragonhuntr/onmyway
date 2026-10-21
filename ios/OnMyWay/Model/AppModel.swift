@@ -25,6 +25,10 @@ final class AppModel {
     /// Message to show in an alert, e.g. when an order expires.
     var notice: String?
 
+    /// Order updates for the bell on Home, newest first.
+    var notifications: [AppNotification] = []
+    var unreadNotifications = 0
+
     // MARK: Customer side
     var destination: Destination?
     var buildings: [Building] = []
@@ -96,7 +100,20 @@ final class AppModel {
     func signOut() {
         let token = token
         Task { let _: Empty? = try? await API.send("POST", "logout", token: token) }
+        clearSignedIn()
+    }
+
+    /// Wipes the account on the server, then signs out here. Throws the server's reason when it can't yet,
+    /// e.g. an open order or money left to cash out.
+    func deleteAccount() async throws {
+        let _: Empty = try await call("DELETE", "me")
+        clearSignedIn()
+    }
+
+    private func clearSignedIn() {
         orderWatch?.cancel()
+        notifications = []
+        unreadNotifications = 0
         session = nil
         activeOrder = nil
         deliveredOrder = nil
@@ -121,7 +138,24 @@ final class AppModel {
         async let home: Void = loadHome()
         async let order: Void = loadActiveOrder()
         async let runner: Void = refreshRunner()
-        _ = await (home, order, runner)
+        async let inbox: Void = loadNotifications()
+        _ = await (home, order, runner, inbox)
+    }
+
+    // MARK: Notifications
+
+    func loadNotifications() async {
+        struct Response: Decodable, Sendable { let notifications: [AppNotification]; let unread: Int }
+        guard let response: Response = try? await call("GET", "notifications") else { return }
+        notifications = response.notifications
+        unreadNotifications = response.unread
+    }
+
+    /// Called when the list is opened; the rows keep their unread look until it's next loaded.
+    func markNotificationsRead() async {
+        guard unreadNotifications > 0 else { return }
+        unreadNotifications = 0
+        let _: Empty? = try? await call("POST", "notifications/read")
     }
 
     // MARK: Push
