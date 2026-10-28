@@ -108,6 +108,8 @@ object Api {
         val firstName: String,
         val lastName: String,
         val token: String,
+        /** Only on `GET /me`. */
+        val runner: RunnerStats? = null,
     ) {
         val sessionUser: SessionUser get() = SessionUser(id, username, email, firstName, lastName)
     }

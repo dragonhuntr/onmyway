@@ -121,6 +121,26 @@ const rated = await call("POST", `/orders/${orderID}/rating`, {
 });
 assert.equal(rated.tip.status, "paid");
 await call("POST", `/orders/${orderID}/rating`, { token: evan.token, body: { stars: 4 }, expect: 409 });
+assert.deepEqual((await call("GET", "/me", { token: wiya.token })).runner, {
+  rating: 5,
+  ratings: 1,
+  deliveries: 1,
+  tags: [
+    { tag: "On time", count: 1 },
+    { tag: "Friendly", count: 1 },
+    { tag: "Careful with food", count: 0 },
+  ],
+});
+assert.deepEqual((await call("GET", "/me", { token: evan.token })).runner, {
+  rating: null,
+  ratings: 0,
+  deliveries: 0,
+  tags: [
+    { tag: "On time", count: 0 },
+    { tag: "Friendly", count: 0 },
+    { tag: "Careful with food", count: 0 },
+  ],
+});
 
 // Earnings and cash out
 const week = await call("GET", "/earnings", { token: wiya.token });

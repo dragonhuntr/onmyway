@@ -152,6 +152,9 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         clearSignedIn()
     }
 
+    /** The signed-in person's ratings as a runner, for Profile. */
+    suspend fun runnerStats(): RunnerStats? = call<Api.Account>("GET", "me").runner
+
     private fun clearSignedIn() {
         orderWatch?.cancel()
         notifications = emptyList()

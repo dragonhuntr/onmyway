@@ -25,7 +25,7 @@ Built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv
 | 08 | Delivery request | `Screens/Run/RunnerViews.swift` | `run/RunnerScreens.kt` |
 | 09 | Active delivery | `Screens/Run/RunnerViews.swift` | `run/RunnerScreens.kt` |
 | 10 | Earnings | `Screens/Earnings/EarningsView.swift` | `earnings/EarningsScreen.kt` |
-| — | Profile (sign out, delete account) | `Screens/Order/ProfileView.swift` | `order/ProfileScreen.kt` |
+| — | Profile (runner ratings, sign out, delete account) | `Screens/Order/ProfileView.swift` | `order/ProfileScreen.kt` |
 | — | Notifications (bell on Home) | `Screens/Shared/NotificationsView.swift` | `shared/NotificationsScreen.kt` |
 | — | Chat, destination + trip pickers | `Screens/Shared/` | `shared/` |
 
@@ -45,6 +45,7 @@ The app talks only to the Worker in `api/src/index.ts`, deployed at `https://onm
 - **Login** (`POST /login`) looks up the username, checks the password, stores a new `sessions` token, and returns it.
 - **Forgot password** (link on Login): `POST /password-reset` `{ email }` emails a 6-digit code (`api/src/email.ts`, see *Email setup*). It always answers `{ ok: true }`, so it never reveals whether an email has an account. The code is stored only as a PBKDF2 hash in `password_resets`, lasts 15 minutes, allows 5 wrong tries, and a new one can be sent once a minute. `POST /password-reset/confirm` `{ email, code, password }` sets the new password, ends every existing sign-in, and returns a fresh token like `/login`. Deleted accounts can't reset.
 - The app saves that token. On the next launch it sends the token to `GET /me` and restores the account. Tokens last 30 days; `POST /logout` ends one.
+- **Profile** reads `GET /me`, which also returns `runner`: average stars, number of ratings, deliveries completed, and how many customers picked each rating tag. The ratings card shows once someone has delivered.
 - **Delete account** (`DELETE /me`, from Profile) is refused while the person has an open order or delivery, or money left to cash out. Otherwise it wipes the name, email, password, saved drop-off and trips and ends every sign-in. The `users` row stays as "Deleted account" so past orders and the ledger still add up for the other person, and the email can register again.
 
 An order moves `awaiting_payment → matching → accepted → picked_up → delivered`, or ends `cancelled` / `expired`.

@@ -2,12 +2,34 @@ import type { Context } from "./http.ts";
 import { paymentsEnabled } from "./env.ts";
 import { HttpError, cents, id, json, now, readJSON } from "./http.ts";
 import { requireUser } from "./auth.ts";
-import { participantOrder } from "./orders.ts";
+import { participantOrder, runnerStats } from "./orders.ts";
 import { paymentSheet, stripe, type PaymentIntent } from "./stripe.ts";
 import { creditTip } from "./money.ts";
+import type { Env } from "./env.ts";
 
 const tagOptions = ["On time", "Friendly", "Careful with food"];
 const maxExtraTipCents = 2000;
+
+/** How a runner has been rated, for `GET /me`: average stars, counts, and how often customers picked each tag. */
+export async function runnerProfile(env: Env, runnerID: string) {
+  const [stats, ratings, tags] = await Promise.all([
+    runnerStats(env, runnerID),
+    env.DB.prepare("SELECT COUNT(*) AS count FROM ratings WHERE runner_id = ?1").bind(runnerID).first<{ count: number }>(),
+    env.DB.prepare(
+      `SELECT tag.value AS tag, COUNT(*) AS count FROM ratings, json_each(ratings.tags) AS tag
+       WHERE ratings.runner_id = ?1 GROUP BY tag.value`,
+    )
+      .bind(runnerID)
+      .all<{ tag: string; count: number }>(),
+  ]);
+  const counts = new Map(tags.results.map((row) => [row.tag, row.count]));
+  return {
+    rating: stats.rating,
+    ratings: ratings?.count ?? 0,
+    deliveries: stats.deliveries,
+    tags: tagOptions.map((tag) => ({ tag, count: counts.get(tag) ?? 0 })),
+  };
+}
 
 /**
  * POST /orders/:id/rating `{ stars, tags, extraTipCents }`

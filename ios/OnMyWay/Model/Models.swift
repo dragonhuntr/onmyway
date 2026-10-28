@@ -191,6 +191,19 @@ struct Runner: Decodable, Hashable, Sendable {
     }
 }
 
+/// How the signed-in person has been rated as a runner, from `GET /me`.
+struct RunnerStats: Decodable, Hashable, Sendable {
+    struct TagCount: Decodable, Hashable, Sendable {
+        let tag: String
+        let count: Int
+    }
+
+    let rating: Double?
+    let ratings: Int
+    let deliveries: Int
+    let tags: [TagCount]
+}
+
 /// An order a runner can pick up along their route.
 struct DeliveryRequest: Decodable, Identifiable, Hashable, Sendable {
     struct Customer: Decodable, Hashable, Sendable {
