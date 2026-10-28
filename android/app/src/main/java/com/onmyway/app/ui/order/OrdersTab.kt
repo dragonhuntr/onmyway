@@ -30,7 +30,9 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ReportProblem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon as MaterialIcon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -42,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,9 +72,13 @@ import com.onmyway.app.model.usd
 import com.onmyway.app.ui.components.rememberPayments
 import com.onmyway.app.ui.run.SheetAction
 import com.stripe.android.paymentsheet.PaymentSheetResult
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.onmyway.app.model.AppModel
 import com.onmyway.app.model.AppTab
 import com.onmyway.app.model.Order
@@ -83,6 +90,7 @@ import com.onmyway.app.ui.components.MapLabel
 import com.onmyway.app.ui.components.MapPin
 import com.onmyway.app.ui.components.MapRoute
 import com.onmyway.app.ui.components.PinKind
+import com.onmyway.app.ui.components.RefreshableColumn
 import com.onmyway.app.ui.components.RunnerDot
 import com.onmyway.app.ui.theme.ChipToggle
 import com.onmyway.app.ui.theme.CtaButton
@@ -90,6 +98,8 @@ import com.onmyway.app.ui.theme.CtaKind
 import com.onmyway.app.ui.theme.Footer
 import com.onmyway.app.ui.theme.Icon
 import com.onmyway.app.ui.theme.IconBadge
+import com.onmyway.app.ui.theme.LinkButton
+import com.onmyway.app.ui.theme.card
 import com.onmyway.app.ui.theme.OmwColors
 import com.onmyway.app.ui.theme.OmwType
 import com.onmyway.app.ui.theme.bold
@@ -106,12 +116,30 @@ fun OrdersTab(model: AppModel) {
     } else if (order != null && order.status == Order.Status.Matching && model.orderingFrom == null) {
         FindingRunnerScreen(model, onBack = null)
     } else {
-        Column(Modifier.fillMaxSize().background(OmwColors.Canvas).statusBarsPadding()) {
-            LargeTitle("Orders", Modifier.padding(start = 20.dp, top = 8.dp))
+        PastOrders(model)
+    }
+}
+
+/** Orders with nothing on the way: finished orders, newest first, paging in as you scroll. */
+@Composable
+private fun PastOrders(model: AppModel) {
+    val scroll = rememberScrollState()
+    val cursor = model.pastOrdersCursor
+    LaunchedEffect(Unit) { model.loadPastOrders() }
+    LaunchedEffect(cursor) {
+        if (cursor == null) return@LaunchedEffect
+        // Fetch the next page when the bottom is within about two rows.
+        snapshotFlow { scroll.maxValue - scroll.value < 600 }.first { it }
+        model.loadMorePastOrders()
+    }
+
+    Column(Modifier.fillMaxSize().background(OmwColors.Canvas).statusBarsPadding()) {
+        LargeTitle("Orders", Modifier.padding(start = 20.dp, top = 8.dp))
+        if (model.pastOrders.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 EmptyState(
                     icon = Icons.AutoMirrored.Outlined.ReceiptLong,
-                    title = "No active orders",
+                    title = "No orders yet",
                     message = "Order on Transact, then send it to a runner heading your way.",
                 ) {
                     Button(
@@ -119,6 +147,101 @@ fun OrdersTab(model: AppModel) {
                         colors = ButtonDefaults.buttonColors(containerColor = OmwColors.Brand),
                     ) { Text("Browse dining halls") }
                 }
+            }
+        } else {
+            RefreshableColumn(
+                onRefresh = model::loadPastOrders,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                scrollState = scroll,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "Past orders",
+                    style = OmwType.Headline,
+                    color = OmwColors.Ink,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                )
+                model.pastOrders.forEach { order -> PastOrderRow(model, order) }
+                if (cursor != null) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = OmwColors.Brand, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                    }
+                }
+                Spacer(Modifier.size(8.dp))
+            }
+        }
+    }
+}
+
+private val pastOrderTime: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.US)
+
+/** A finished order: where it came from, who brought it, what it cost, and a way to order it again. */
+@Composable
+private fun PastOrderRow(model: AppModel, order: Order) {
+    val restaurant = model.restaurants.firstOrNull { it.id == order.restaurant.id }
+    val delivered = order.status == Order.Status.Delivered
+    val scope = rememberCoroutineScope()
+    val status = when (order.status) {
+        Order.Status.Delivered -> "Delivered"
+        Order.Status.Expired -> "Expired"
+        else -> "Cancelled"
+    }
+    // "Oct 26, 9:50 PM · WiYa"
+    val time = (order.deliveredAt ?: order.cancelledAt ?: order.createdAt).atZone(ZoneId.systemDefault()).format(pastOrderTime)
+    val runner = order.runner
+    val whenText = if (delivered && runner != null) "$time · ${runner.firstName}" else time
+    // "$1.00 fee · $3.00 tip · 5★", or why it didn't go ahead.
+    val tip = order.tipCents + order.extraTipCents
+    val summary = if (delivered) {
+        listOfNotNull(
+            "${order.deliveryFeeCents.usd} fee",
+            if (tip > 0) "${tip.usd} tip" else null,
+            order.rating?.let { "${it.stars}★" } ?: "Not rated",
+        ).joinToString(" · ")
+    } else {
+        order.cancelReason ?: "Cancelled"
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.padding(horizontal = 20.dp).card(padding = 14.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.semantics(mergeDescendants = true) {},
+        ) {
+            if (restaurant != null) {
+                FoodTile(restaurant, 52.dp, 52.dp)
+            } else {
+                IconBadge(R.drawable.building, iconSize = 22.dp, badgeSize = 52.dp, background = OmwColors.BrandSoft, radius = 12.dp)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
+                Text(order.restaurant.name, style = OmwType.Subheadline.semibold, color = OmwColors.Ink)
+                Text("To ${order.destination.short}", style = OmwType.Caption, color = OmwColors.InkSecondary)
+                Text(whenText, style = OmwType.Caption, color = OmwColors.InkSecondary)
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (delivered) (order.dueNowCents + order.extraTipCents).usd else "Not charged",
+                    style = OmwType.Subheadline.bold,
+                    color = OmwColors.Ink,
+                )
+                Text(
+                    status,
+                    style = OmwType.Caption2.medium,
+                    color = if (delivered) OmwColors.BrandDeep else OmwColors.InkSecondary,
+                    modifier = Modifier
+                        .background(if (delivered) OmwColors.BrandSoft else OmwColors.Hairline, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
+        HorizontalDivider(color = OmwColors.Hairline, thickness = 1.dp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(summary, style = OmwType.Caption, color = OmwColors.InkSecondary, modifier = Modifier.weight(1f))
+            if (restaurant != null) {
+                LinkButton("Order again") { scope.launch { model.orderAgain(order) } }
             }
         }
     }

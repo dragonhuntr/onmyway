@@ -12,22 +12,134 @@ struct OrdersTab: View {
                 } else if let order = model.activeOrder, order.status == .matching, model.orderingFrom == nil {
                     FindingRunnerView()
                 } else {
-                    ContentUnavailableView {
-                        Label("No active orders", systemImage: "receipt")
-                    } description: {
-                        Text("Order on Transact, then send it to a runner heading your way.")
-                    } actions: {
-                        Button("Browse dining halls") { model.selectedTab = .home }
-                            .buttonStyle(.borderedProminent)
-                    }
-                    .background(Color.canvas)
-                    .navigationTitle("Orders")
+                    PastOrdersView()
                 }
             }
         }
         .fullScreenCover(item: $model.deliveredOrder) { order in
             DeliveredView(order: order).environment(model)
         }
+    }
+}
+
+/// Orders with nothing on the way: finished orders, newest first, paging in as you scroll.
+struct PastOrdersView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Group {
+            if model.pastOrders.isEmpty {
+                ContentUnavailableView {
+                    Label("No orders yet", systemImage: "receipt")
+                } description: {
+                    Text("Order on Transact, then send it to a runner heading your way.")
+                } actions: {
+                    Button("Browse dining halls") { model.selectedTab = .home }
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        Text("Past orders").font(.headline).foregroundStyle(Color.ink)
+                        ForEach(model.pastOrders) { order in
+                            PastOrderRow(order: order)
+                        }
+                        if let cursor = model.pastOrdersCursor {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .task(id: cursor) { await model.loadMorePastOrders() }
+                        }
+                    }
+                    .padding(20)
+                }
+                .refreshable { await model.loadPastOrders() }
+            }
+        }
+        .background(Color.canvas)
+        .navigationTitle("Orders")
+        .task { await model.loadPastOrders() }
+    }
+}
+
+/// A finished order: where it came from, who brought it, what it cost, and a way to order it again.
+struct PastOrderRow: View {
+    let order: Order
+    @Environment(AppModel.self) private var model
+
+    private var restaurant: Restaurant? { model.restaurants.first { $0.id == order.restaurant.id } }
+    private var delivered: Bool { order.status == .delivered }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                if let restaurant {
+                    FoodTile(restaurant: restaurant, size: CGSize(width: 52, height: 52))
+                } else {
+                    Image(.building).resizable().frame(width: 22, height: 22)
+                        .frame(width: 52, height: 52)
+                        .background(Color.brandSoft, in: .rect(cornerRadius: 12))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(order.restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
+                    Text("To \(order.destination.short)").font(.caption).foregroundStyle(Color.inkSecondary)
+                    Text(when).font(.caption).foregroundStyle(Color.inkSecondary)
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(delivered ? (order.dueNowCents + order.extraTipCents).usd : "Not charged")
+                        .font(.subheadline.bold()).foregroundStyle(Color.ink)
+                    Text(status)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(delivered ? Color.brandDeep : Color.inkSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(delivered ? Color.brandSoft : Color.hairline, in: .rect(cornerRadius: 6))
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            Divider().overlay(Color.hairline)
+
+            HStack {
+                Text(summary).font(.caption).foregroundStyle(Color.inkSecondary)
+                Spacer()
+                if restaurant != nil {
+                    Button("Order again") { Task { await model.orderAgain(order) } }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.brand)
+                }
+            }
+        }
+        .card(padding: 14)
+    }
+
+    private var status: String {
+        switch order.status {
+        case .delivered: "Delivered"
+        case .expired: "Expired"
+        default: "Cancelled"
+        }
+    }
+
+    /// "Oct 26, 9:50 PM · WiYa"
+    private var when: String {
+        let date = (order.deliveredAt ?? order.cancelledAt ?? order.createdAt)
+            .formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        guard delivered, let runner = order.runner else { return date }
+        return "\(date) · \(runner.firstName)"
+    }
+
+    /// "$1.00 fee · $3.00 tip · 5★", or why it didn't go ahead.
+    private var summary: String {
+        guard delivered else { return order.cancelReason ?? "Cancelled" }
+        let tip = order.tipCents + order.extraTipCents
+        return [
+            "\(order.deliveryFeeCents.usd) fee",
+            tip > 0 ? "\(tip.usd) tip" : nil,
+            order.rating.map { "\($0.stars)★" } ?? "Not rated",
+        ]
+        .compactMap(\.self)
+        .joined(separator: " · ")
     }
 }
 
