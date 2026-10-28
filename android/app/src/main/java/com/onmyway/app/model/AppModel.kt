@@ -83,6 +83,12 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     /** Set when the active order is delivered, to present the confirmation screen. */
     var deliveredOrder by mutableStateOf<Order?>(null)
         private set
+    /** Delivered, cancelled and expired orders for the Orders tab, newest first. */
+    var pastOrders by mutableStateOf<List<Order>>(emptyList())
+        private set
+    /** Cursor for the next page of [pastOrders]; null once they're all loaded. */
+    var pastOrdersCursor by mutableStateOf<String?>(null)
+        private set
     private var orderWatch: Job? = null
 
     // Runner side
@@ -155,6 +161,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         session = null
         activeOrder = null
         deliveredOrder = null
+        pastOrders = emptyList()
+        pastOrdersCursor = null
         activeDelivery = null
         orderingFrom = null
         chat = null
@@ -409,13 +417,40 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun finishDelivered(orderAgain: Boolean) {
-        val restaurant = restaurants.firstOrNull { it.id == deliveredOrder?.restaurant?.id }
+        val order = deliveredOrder
         deliveredOrder = null
         viewModelScope.launch { loadHome() }
-        if (orderAgain && restaurant != null) {
-            selectedTab = AppTab.Home
-            orderingFrom = restaurant
+        if (orderAgain && order != null) viewModelScope.launch { orderAgain(order) }
+    }
+
+    /** Opens the usual ordering flow for the order's restaurant, delivering to the same place as last time. */
+    suspend fun orderAgain(order: Order) {
+        val restaurant = restaurants.firstOrNull { it.id == order.restaurant.id } ?: return
+        if (destination != order.destination) {
+            val place = order.destination
+            runCatching { setDestination(place.buildingId, place.room, place.note) }
         }
+        selectedTab = AppTab.Home
+        orderingFrom = restaurant
+    }
+
+    @Serializable
+    private data class PastOrdersResponse(val orders: List<Order>, val nextBefore: String? = null)
+
+    /** Loads the first page of past orders, replacing what's shown. */
+    suspend fun loadPastOrders() {
+        val response = tryCall<PastOrdersResponse>("GET", "orders") ?: return
+        pastOrders = response.orders
+        pastOrdersCursor = response.nextBefore
+    }
+
+    /** Appends the next page, if there is one. */
+    suspend fun loadMorePastOrders() {
+        val cursor = pastOrdersCursor ?: return
+        val response = tryCall<PastOrdersResponse>("GET", "orders", query = mapOf("before" to cursor)) ?: return
+        if (cursor != pastOrdersCursor) return // a refresh landed meanwhile
+        pastOrders = pastOrders + response.orders
+        pastOrdersCursor = response.nextBefore
     }
 
     // Chat

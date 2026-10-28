@@ -39,6 +39,10 @@ final class AppModel {
     var activeOrder: Order?
     /// Set when the active order is delivered, to present the confirmation screen.
     var deliveredOrder: Order?
+    /// Delivered, cancelled and expired orders for the Orders tab, newest first.
+    var pastOrders: [Order] = []
+    /// Cursor for the next page of `pastOrders`; nil once they're all loaded.
+    private(set) var pastOrdersCursor: String?
     private var orderWatch: Task<Void, Never>?
 
     // MARK: Runner side
@@ -117,6 +121,8 @@ final class AppModel {
         session = nil
         activeOrder = nil
         deliveredOrder = nil
+        pastOrders = []
+        pastOrdersCursor = nil
         activeDelivery = nil
         clearToken()
     }
@@ -349,17 +355,49 @@ final class AppModel {
     }
 
     func finishDelivered(orderAgain: Bool) {
-        let restaurant = restaurants.first { $0.id == deliveredOrder?.restaurant.id }
+        let order = deliveredOrder
         deliveredOrder = nil
         Task { await loadHome() }
-        if orderAgain, let restaurant {
-            selectedTab = .home
+        if orderAgain, let order {
             // Let the Delivered cover finish dismissing before presenting the ordering flow.
             Task {
                 try? await Task.sleep(for: .milliseconds(600))
-                orderingFrom = restaurant
+                await self.orderAgain(order)
             }
         }
+    }
+
+    /// Opens the usual ordering flow for the order's restaurant, delivering to the same place as last time.
+    func orderAgain(_ order: Order) async {
+        guard let restaurant = restaurants.first(where: { $0.id == order.restaurant.id }) else { return }
+        if destination != order.destination {
+            let place = order.destination
+            try? await setDestination(buildingID: place.buildingId, room: place.room, note: place.note)
+        }
+        selectedTab = .home
+        orderingFrom = restaurant
+    }
+
+    private struct PastOrdersResponse: Decodable, Sendable {
+        let orders: [Order]
+        let nextBefore: String?
+    }
+
+    /// Loads the first page of past orders, replacing what's shown.
+    func loadPastOrders() async {
+        guard let response: PastOrdersResponse = try? await call("GET", "orders") else { return }
+        pastOrders = response.orders
+        pastOrdersCursor = response.nextBefore
+    }
+
+    /// Appends the next page, if there is one.
+    func loadMorePastOrders() async {
+        guard let cursor = pastOrdersCursor,
+              let response: PastOrdersResponse = try? await call("GET", "orders", query: ["before": cursor]),
+              cursor == pastOrdersCursor // a refresh landed meanwhile
+        else { return }
+        pastOrders += response.orders
+        pastOrdersCursor = response.nextBefore
     }
 
     // MARK: Chat

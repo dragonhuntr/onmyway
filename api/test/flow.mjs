@@ -152,6 +152,20 @@ await call("POST", `/orders/${second.order.id}/release`, { token: wiya.token });
 assert.equal((await call("GET", `/orders/${second.order.id}`, { token: evan.token })).order.status, "matching");
 assert.equal((await call("POST", `/orders/${second.order.id}/cancel`, { token: evan.token })).order.status, "cancelled");
 
+// Past orders: finished ones only, newest first, with what the Orders tab shows
+const past = await call("GET", "/orders", { token: evan.token });
+assert.deepEqual(past.orders.map((o) => [o.id, o.status]), [[second.order.id, "cancelled"], [orderID, "delivered"]]);
+assert.equal(past.nextBefore, null);
+const delivered = past.orders[1];
+assert.deepEqual(
+  [delivered.restaurant.id, delivered.destination.buildingId, delivered.runner.firstName, delivered.rating.stars],
+  ["brunos", "burke", "WiYa", 5],
+);
+assert.deepEqual([delivered.deliveryFeeCents, delivered.tipCents, delivered.extraTipCents], [100, 100, 200]);
+assert.ok(delivered.deliveredAt);
+const older = await call("GET", `/orders?before=${encodeURIComponent(past.orders[0].createdAt)}`, { token: evan.token });
+assert.deepEqual(older.orders.map((o) => o.id), [orderID]);
+
 // Notifications: order updates are kept for the bell, chat messages aren't
 let inbox;
 for (let tries = 0; tries < 20; tries++) {

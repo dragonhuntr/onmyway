@@ -315,17 +315,26 @@ export async function activeOrder(c: Context): Promise<Response> {
   return json({ order: order ? await orderView(c.env, order, user) : null });
 }
 
-/** GET /orders?before=ISO — the customer's past orders, newest first. */
+const pastOrdersPage = 20;
+
+/**
+ * GET /orders?before=ISO — the customer's finished orders (delivered, cancelled, expired), newest first.
+ * `nextBefore` is the cursor for the next page, or null on the last one.
+ */
 export async function listOrders(c: Context): Promise<Response> {
   const user = await requireUser(c);
   const before = isoDate(c.url.searchParams.get("before")) ?? "9999";
   const { results } = await c.env.DB.prepare(
-    "SELECT * FROM orders WHERE customer_id = ?1 AND created_at < ?2 AND status != 'awaiting_payment' ORDER BY created_at DESC LIMIT 20",
+    `SELECT * FROM orders WHERE customer_id = ?1 AND created_at < ?2 AND status NOT IN (${activeList})
+     ORDER BY created_at DESC LIMIT ${pastOrdersPage}`,
   )
     .bind(user.id, before)
     .all<OrderRow>();
   const known = await places(c.env);
-  return json({ orders: await Promise.all(results.map((order) => orderView(c.env, order, user, known))) });
+  return json({
+    orders: await Promise.all(results.map((order) => orderView(c.env, order, user, known))),
+    nextBefore: results.length === pastOrdersPage ? results[results.length - 1].created_at : null,
+  });
 }
 
 /** POST /orders/:id/cancel — only before a runner accepts. */
