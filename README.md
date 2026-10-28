@@ -99,7 +99,7 @@ npx wrangler secret put APNS_TEAM_ID    # your team ID
 
 `APNS_ENVIRONMENT` is `sandbox` for builds run from Xcode; switch it to `production` in `wrangler.jsonc` and `cloudflare.config.ts` for TestFlight and the App Store. To try the in-app banner on a simulator without any of this, use `xcrun simctl push booted com.onmyway.app payload.apns`.
 
-Building coordinates come from OpenStreetMap (`api/migrations/0004_behrend_coordinates.sql`) except Burke, Nick, Otto Behrend Science, Kochel, Hammermill and the Research and Economic Development Center, which are still hand-placed in `0003_behrend_places.sql`. Correct those before trusting detour times to them.
+Building coordinates come from OpenStreetMap (`api/migrations/0004_behrend_coordinates.sql` and `0008_behrend_remaining_coordinates.sql`) except Nick, Otto Behrend Science, Kochel and Hammermill, which OSM doesn't identify and which are still hand-placed in `0003_behrend_places.sql`. Correct those before trusting detour times to them. Burke Center and the Research and Economic Development Center are the same building, so the `burke` and `rdc` rows share a position.
 
 ## Requirements
 
