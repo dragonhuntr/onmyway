@@ -17,10 +17,11 @@
     "DELIVERY_FEE_CENTS": "100",
     "PAYMENTS": "stripe",
     "APNS_TOPIC": "com.onmyway.app",
-    "APNS_ENVIRONMENT": "sandbox"
+    "APNS_ENVIRONMENT": "sandbox",
+    "EMAIL_FROM": "On My Way <onboarding@resend.dev>"
   },
   // Secrets (wrangler secret put): STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET,
-  // FCM_SERVICE_ACCOUNT, APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID
+  // FCM_SERVICE_ACCOUNT, APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, RESEND_API_KEY
   "triggers": {
     "crons": ["* * * * *"]
   }

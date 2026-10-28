@@ -1,6 +1,7 @@
 import type { Context } from "./http.ts";
 import type { Env, User } from "./env.ts";
 import { balanceCents } from "./money.ts";
+import { sendEmail } from "./email.ts";
 import { HttpError, decodeBase64, encodeBase64, json, minutesFromNow, now, readJSON, text } from "./http.ts";
 
 const iterations = 100_000;
@@ -117,6 +118,136 @@ export async function deleteAccount(c: Context): Promise<Response> {
     c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(user.id),
   ]);
   return json({ ok: true });
+}
+
+// MARK: Forgot password
+
+const resetMinutes = 15;
+const resetTries = 5;
+/** A new code isn't sent while the last one is younger than this; stops email floods and code cycling. */
+const resetCooldownSeconds = 60;
+
+/**
+ * POST /password-reset `{ email }` — emails a 6-digit code. Always `{ ok: true }`, whether or not the
+ * email has an account; the lookup and sending happen after the response so timing gives nothing away either.
+ */
+export async function requestPasswordReset(c: Context): Promise<Response> {
+  const body = await readJSON(c.request);
+  const email = resetEmail(c.env, body.email);
+  const sending = sendResetCode(c.env, email);
+  if (exposesResetCodes(c.env)) {
+    // Local development only: hand the code back so test/flow.mjs can finish the reset.
+    return json({ ok: true, devCode: await sending });
+  }
+  c.ctx.waitUntil(sending);
+  return json({ ok: true });
+}
+
+/**
+ * POST /password-reset/confirm `{ email, code, password }` — sets the new password, ends every
+ * other sign-in, and signs in here like /login.
+ */
+export async function confirmPasswordReset(c: Context): Promise<Response> {
+  const body = await readJSON(c.request);
+  const email = resetEmail(c.env, body.email);
+  const code = text(body.code, 20);
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!/^\d{6}$/.test(code)) {
+    throw new HttpError(400, "Enter the 6-digit code from the email.");
+  }
+  if (password.length < 8) {
+    throw new HttpError(400, "Use a password of at least 8 characters.");
+  }
+
+  const wrong = new HttpError(400, "That code is wrong or has expired.", "reset_code");
+  const user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?1 AND deleted_at IS NULL")
+    .bind(email)
+    .first<User>();
+  if (!user) throw wrong;
+
+  // Count the try before checking it, so parallel guesses can't get past the limit.
+  const reset = await c.env.DB.prepare(
+    `UPDATE password_resets SET attempts = attempts + 1
+     WHERE user_id = ?1 AND expires_at > ?2 AND attempts < ?3
+     RETURNING code_hash, code_salt, attempts`,
+  )
+    .bind(user.id, now(), resetTries)
+    .first<{ code_hash: string; code_salt: string; attempts: number }>();
+  if (!reset) throw wrong;
+  if ((await hashPassword(code, decodeBase64(reset.code_salt))) !== reset.code_hash) {
+    if (reset.attempts < resetTries) throw wrong;
+    await c.env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(user.id).run();
+    throw new HttpError(429, "Too many wrong codes. Request a new one.", "reset_locked");
+  }
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE users SET password_hash = ?2, password_salt = ?3 WHERE id = ?1").bind(
+      user.id,
+      await hashPassword(password, salt),
+      encodeBase64(salt),
+    ),
+    c.env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(user.id),
+    c.env.DB.prepare("DELETE FROM devices WHERE user_id = ?1").bind(user.id),
+    c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(user.id),
+  ]);
+  return json(publicUser(user, await createSession(c.env, user.id)));
+}
+
+function resetEmail(env: Env, value: unknown): string {
+  const email = text(value).toLowerCase();
+  if (!email.includes("@")) throw new HttpError(400, "Enter your email.");
+  const domain = env.ALLOWED_EMAIL_DOMAIN.toLowerCase();
+  if (domain && !email.endsWith(`@${domain}`)) {
+    throw new HttpError(400, `Use your @${domain} email.`, "email_domain");
+  }
+  return email;
+}
+
+/** Only with `PAYMENTS=off` (local development) and no email provider; never in production. */
+function exposesResetCodes(env: Env): boolean {
+  return env.PAYMENTS === "off" && !env.RESEND_API_KEY;
+}
+
+/** Stores a fresh code for the account (replacing any older one) and emails it. Returns the code, or null. */
+async function sendResetCode(env: Env, email: string): Promise<string | null> {
+  try {
+    const user = await env.DB.prepare("SELECT id FROM users WHERE email = ?1 AND deleted_at IS NULL")
+      .bind(email)
+      .first<{ id: string }>();
+    if (!user) return null;
+    const recent = await env.DB.prepare("SELECT 1 FROM password_resets WHERE user_id = ?1 AND created_at > ?2")
+      .bind(user.id, new Date(Date.now() - resetCooldownSeconds * 1000).toISOString())
+      .first();
+    if (recent) return null;
+
+    const code = sixDigitCode();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    await env.DB.prepare(
+      `INSERT INTO password_resets (user_id, code_hash, code_salt, attempts, created_at, expires_at)
+       VALUES (?1, ?2, ?3, 0, ?4, ?5)
+       ON CONFLICT(user_id) DO UPDATE SET code_hash = ?2, code_salt = ?3, attempts = 0, created_at = ?4, expires_at = ?5`,
+    )
+      .bind(user.id, await hashPassword(code, salt), encodeBase64(salt), now(), minutesFromNow(resetMinutes))
+      .run();
+    await sendEmail(env, {
+      to: email,
+      subject: `${code} is your On My Way code`,
+      text: `Your On My Way password reset code is ${code}. It expires in ${resetMinutes} minutes.\n\nIf you didn't ask to reset your password, ignore this email; your password hasn't changed.`,
+    });
+    return code;
+  } catch (error) {
+    console.warn("Password reset failed", error);
+    return null;
+  }
+}
+
+/** Uniform 000000–999999. 4_294_000_000 is the largest multiple of a million below 2^32. */
+function sixDigitCode(): string {
+  const value = new Uint32Array(1);
+  do crypto.getRandomValues(value);
+  while (value[0] >= 4_294_000_000);
+  return String(value[0] % 1_000_000).padStart(6, "0");
 }
 
 /** The signed-in user, or a 401. */

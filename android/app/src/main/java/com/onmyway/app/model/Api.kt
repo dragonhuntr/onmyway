@@ -128,6 +128,19 @@ object Api {
     suspend fun login(username: String, password: String): Account =
         send("POST", "login", body = mapOf("username" to username, "password" to password), token = null)
 
+    /** Emails a 6-digit code. Succeeds whether or not the email has an account. */
+    suspend fun requestPasswordReset(email: String) {
+        send<Empty>("POST", "password-reset", body = mapOf("email" to email), token = null)
+    }
+
+    /** Sets the new password and signs in; every other sign-in ends. */
+    suspend fun resetPassword(email: String, code: String, password: String): Account =
+        send(
+            "POST", "password-reset/confirm",
+            body = mapOf("email" to email, "code" to code, "password" to password),
+            token = null,
+        )
+
     suspend fun currentAccount(token: String): Account = send("GET", "me", token = token)
 }
 

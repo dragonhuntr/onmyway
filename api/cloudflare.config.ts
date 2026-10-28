@@ -24,6 +24,8 @@ export default defineConfig({
       APNS_KEY_ID: bindings.secret(),
       APNS_TEAM_ID: bindings.secret(),
       FCM_SERVICE_ACCOUNT: bindings.secret(),
+      EMAIL_FROM: bindings.text("On My Way <onboarding@resend.dev>"),
+      RESEND_API_KEY: bindings.secret(),
     },
     // Expire stale orders and idle runners.
     triggers: [triggers.scheduled({ schedule: "* * * * *" })],

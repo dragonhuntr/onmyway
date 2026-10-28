@@ -5,7 +5,6 @@ struct LoginView: View {
     @Environment(AppModel.self) private var model
     @State private var username = ""
     @State private var password = ""
-    @State private var showForgotPassword = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
@@ -30,9 +29,13 @@ struct LoginView: View {
 
                     HStack {
                         Spacer()
-                        Button("Forgot Password?") { showForgotPassword = true }
-                            .font(.title3.bold())
-                            .foregroundStyle(Color.ink)
+                        NavigationLink {
+                            ForgotPasswordView()
+                        } label: {
+                            Text("Forgot Password?")
+                                .font(.title3.bold())
+                                .foregroundStyle(Color.ink)
+                        }
                     }
 
                     if let errorMessage {
@@ -66,11 +69,6 @@ struct LoginView: View {
             .scrollDismissesKeyboard(.interactively)
             .background(Color.canvas)
             .toolbarVisibility(.hidden, for: .navigationBar)
-            .alert("Forgot Password?", isPresented: $showForgotPassword) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Password reset is not available yet. Create a new account if you do not remember this password.")
-            }
         }
     }
 
@@ -181,6 +179,120 @@ struct RegisterView: View {
     }
 }
 
+/// Forgot Password — emails a 6-digit code, then sets a new password with it and signs in.
+struct ForgotPasswordView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var email = ""
+    @State private var codeSent = false
+    @State private var code = ""
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    private var trimmedEmail: String {
+        email.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var canSubmit: Bool {
+        if !codeSent { return trimmedEmail.contains("@") }
+        return code.count == 6 && !password.isEmpty && password == confirmPassword
+    }
+
+    private var showMismatch: Bool {
+        !confirmPassword.isEmpty && password != confirmPassword
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                Text("Reset")
+                    .font(.system(size: 64, weight: .bold))
+                    .foregroundStyle(Color.brand)
+                    .frame(maxWidth: .infinity)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .padding(.top, 64)
+                    .padding(.bottom, 28)
+
+                if codeSent {
+                    Text("If \(trimmedEmail) has an account, we emailed it a 6-digit code. It works for 15 minutes.")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    AuthField(prompt: "6-Digit Code", text: $code, keyboard: .numberPad, contentType: .oneTimeCode)
+                        .onChange(of: code) { _, newValue in
+                            let digits = String(newValue.filter(\.isNumber).prefix(6))
+                            if digits != newValue { code = digits }
+                        }
+                    AuthField(prompt: "New Password", text: $password, isSecure: true, contentType: .newPassword)
+                    AuthField(prompt: "Confirm-Password", text: $confirmPassword, isSecure: true, contentType: .newPassword)
+
+                    if showMismatch {
+                        Text("Passwords don’t match.")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.inkSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    AuthField(prompt: "Email", text: $email, keyboard: .emailAddress, contentType: .emailAddress)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button(codeSent ? "Reset Password" : "Send Code") {
+                    Task { await submit() }
+                }
+                .buttonStyle(AuthButtonStyle())
+                .disabled(!canSubmit || isSubmitting)
+                .padding(.top, 8)
+
+                Button(codeSent ? "Send a new code" : "Back to Login") {
+                    if codeSent {
+                        codeSent = false
+                        code = ""
+                        errorMessage = nil
+                    } else {
+                        dismiss()
+                    }
+                }
+                .font(.title3.bold())
+                .foregroundStyle(Color.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color.canvas)
+        .toolbarVisibility(.hidden, for: .navigationBar)
+    }
+
+    private func submit() async {
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+        do {
+            if codeSent {
+                try await model.resetPassword(email: trimmedEmail, code: code, password: password)
+            } else {
+                try await API.requestPasswordReset(email: trimmedEmail)
+                codeSent = true
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
 private struct AuthField: View {
     let prompt: String
     @Binding var text: String
@@ -237,4 +349,8 @@ private struct AuthButtonStyle: ButtonStyle {
 
 #Preview("Register") {
     NavigationStack { RegisterView() }.environment(AppModel())
+}
+
+#Preview("Forgot Password") {
+    NavigationStack { ForgotPasswordView() }.environment(AppModel())
 }

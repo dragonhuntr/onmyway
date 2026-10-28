@@ -100,6 +100,20 @@ extension API {
         try await send("POST", "login", body: ["username": username, "password": password], token: nil)
     }
 
+    /// Emails a 6-digit code. Succeeds whether or not the email has an account.
+    static func requestPasswordReset(email: String) async throws {
+        let _: Empty = try await send("POST", "password-reset", body: ["email": email], token: nil)
+    }
+
+    /// Sets the new password and signs in; every other sign-in ends.
+    static func resetPassword(email: String, code: String, password: String) async throws -> Account {
+        try await send("POST", "password-reset/confirm", body: [
+            "email": email,
+            "code": code,
+            "password": password,
+        ], token: nil)
+    }
+
     static func currentAccount(token: String) async throws -> Account {
         try await send("GET", "me", token: token)
     }

@@ -132,6 +132,11 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         store(Api.register(email, firstName, lastName, username, password))
     }
 
+    /** Finishes Forgot Password with the emailed code, then signs in like [logIn]. */
+    suspend fun resetPassword(email: String, code: String, password: String) {
+        store(Api.resetPassword(email, code, password))
+    }
+
     fun signOut() {
         val token = token
         viewModelScope.launch { runCatching { Api.send<Empty>("POST", "logout", token = token) } }

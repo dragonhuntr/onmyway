@@ -97,6 +97,12 @@ final class AppModel {
         await store(account)
     }
 
+    /// Finishes Forgot Password with the emailed code, then signs in like `logIn`.
+    func resetPassword(email: String, code: String, password: String) async throws {
+        let account = try await API.resetPassword(email: email, code: code, password: password)
+        await store(account)
+    }
+
     func signOut() {
         let token = token
         Task { let _: Empty? = try? await API.send("POST", "logout", token: token) }

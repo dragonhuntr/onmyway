@@ -188,4 +188,41 @@ const sam = await person("Sam", "Ortiz");
 await call("POST", "/logout", { token: sam.token });
 await call("GET", "/me", { token: sam.token, expect: 401 });
 
+// Forgot password. With PAYMENTS=off and no RESEND_API_KEY the Worker hands back the code it logged.
+const samEmail = `${sam.username}@psu.edu`;
+const samSession = (await call("POST", "/login", { body: { username: sam.username, password: "password123" } })).token;
+await call("POST", "/password-reset", { body: { email: "x@gmail.com" }, expect: 400 });
+const unknown = await call("POST", "/password-reset", { body: { email: `nobody-${run}@psu.edu` } });
+assert.equal(unknown.ok, true);
+assert.equal(unknown.devCode, null);
+const { devCode } = await call("POST", "/password-reset", { body: { email: samEmail } });
+assert.match(devCode, /^\d{6}$/);
+assert.equal((await call("POST", "/password-reset", { body: { email: samEmail } })).devCode, null, "cooldown");
+const wrongCode = devCode === "000000" ? "111111" : "000000";
+const reset = { email: samEmail, password: "newpassword456" };
+assert.equal(
+  (await call("POST", "/password-reset/confirm", { body: { ...reset, code: wrongCode }, expect: 400 })).code,
+  "reset_code",
+);
+const resetDone = await call("POST", "/password-reset/confirm", { body: { ...reset, code: devCode } });
+assert.equal(resetDone.username, sam.username);
+assert.equal((await call("GET", "/me", { token: samSession, expect: 401 })).code, "signed_out");
+await call("GET", "/me", { token: resetDone.token });
+await call("POST", "/login", { body: { username: sam.username, password: "password123" }, expect: 401 });
+await call("POST", "/login", { body: { username: sam.username, password: "newpassword456" } });
+await call("POST", "/password-reset/confirm", { body: { ...reset, code: devCode }, expect: 400 });
+// Five wrong tries use the code up
+const mia = await person("Mia", "Chen");
+const miaEmail = `${mia.username}@psu.edu`;
+const miaCode = (await call("POST", "/password-reset", { body: { email: miaEmail } })).devCode;
+const miaWrong = miaCode === "000000" ? "111111" : "000000";
+for (let attempt = 1; attempt <= 4; attempt += 1) {
+  await call("POST", "/password-reset/confirm", { body: { ...reset, email: miaEmail, code: miaWrong }, expect: 400 });
+}
+await call("POST", "/password-reset/confirm", { body: { ...reset, email: miaEmail, code: miaWrong }, expect: 429 });
+await call("POST", "/password-reset/confirm", { body: { ...reset, email: miaEmail, code: miaCode }, expect: 400 });
+// Deleted accounts can't reset
+await call("DELETE", "/me", { token: mia.token });
+assert.equal((await call("POST", "/password-reset", { body: { email: miaEmail } })).devCode, null);
+
 console.log("✓ delivery flow passed");

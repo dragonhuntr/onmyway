@@ -20,6 +20,10 @@ export interface Env {
   APNS_ENVIRONMENT: string;
   /** Firebase service account JSON. Android pushes are skipped until it's set. */
   FCM_SERVICE_ACCOUNT?: string;
+  /** Resend API key. Emails (password reset codes) are logged instead of sent until it's set. */
+  RESEND_API_KEY?: string;
+  /** Sender for emails, e.g. "On My Way <noreply@example.com>", on a domain verified in Resend. */
+  EMAIL_FROM: string;
 }
 
 export type User = {

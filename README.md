@@ -14,6 +14,7 @@ Built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv
 |---|--------|-----|---------|
 | 01A | Login | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
 | 01B | Register | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
+| — | Forgot password (email → code + new password) | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
 | 01 | Home | `Screens/Order/HomeView.swift` | `order/HomeScreen.kt` |
 | 02 | Order web view (Transact) | `Screens/Order/OrderFlow.swift` | `order/OrderFlow.kt` |
 | 03 | Enter order number | `Screens/Order/OrderFlow.swift` | `order/OrderFlow.kt` |
@@ -42,6 +43,7 @@ The app talks only to the Worker in `api/src/index.ts`, deployed at `https://onm
 
 - **Register** (`POST /register`) stores the account in `users`. The password is a PBKDF2 hash, not the password itself. A random token is stored in `sessions` and returned to the app.
 - **Login** (`POST /login`) looks up the username, checks the password, stores a new `sessions` token, and returns it.
+- **Forgot password** (link on Login): `POST /password-reset` `{ email }` emails a 6-digit code (`api/src/email.ts`, see *Email setup*). It always answers `{ ok: true }`, so it never reveals whether an email has an account. The code is stored only as a PBKDF2 hash in `password_resets`, lasts 15 minutes, allows 5 wrong tries, and a new one can be sent once a minute. `POST /password-reset/confirm` `{ email, code, password }` sets the new password, ends every existing sign-in, and returns a fresh token like `/login`. Deleted accounts can't reset.
 - The app saves that token. On the next launch it sends the token to `GET /me` and restores the account. Tokens last 30 days; `POST /logout` ends one.
 - **Delete account** (`DELETE /me`, from Profile) is refused while the person has an open order or delivery, or money left to cash out. Otherwise it wipes the name, email, password, saved drop-off and trips and ends every sign-in. The `users` row stays as "Deleted account" so past orders and the ledger still add up for the other person, and the email can register again.
 
@@ -98,6 +100,18 @@ npx wrangler secret put APNS_TEAM_ID    # your team ID
 ```
 
 `APNS_ENVIRONMENT` is `sandbox` for builds run from Xcode; switch it to `production` in `wrangler.jsonc` and `cloudflare.config.ts` for TestFlight and the App Store. To try the in-app banner on a simulator without any of this, use `xcrun simctl push booted com.onmyway.app payload.apns`.
+
+### Email setup
+
+Password reset codes are emailed through [Resend](https://resend.com). Until `RESEND_API_KEY` is set nothing is sent and the Worker logs the email instead, so the code shows in the `wrangler dev` output (or `npx wrangler tail` when deployed). Locally, with `PAYMENTS=off` and no key, `POST /password-reset` also returns the code as `devCode` so `test/flow.mjs` can finish a reset; this never happens in production.
+
+To send for real, verify a sending domain in Resend, create an API key, and set:
+
+```sh
+npx wrangler secret put RESEND_API_KEY   # re_…
+```
+
+Then change `EMAIL_FROM` in `wrangler.jsonc` and `cloudflare.config.ts` to an address on that domain. The default, `onboarding@resend.dev`, only delivers to the email on your Resend account.
 
 Building coordinates come from OpenStreetMap (`api/migrations/0004_behrend_coordinates.sql`) except Burke, Nick, Otto Behrend Science, Kochel, Hammermill and the Research and Economic Development Center, which are still hand-placed in `0003_behrend_places.sql`. Correct those before trusting detour times to them.
 
