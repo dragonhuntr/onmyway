@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Profile — account details, delivery location, sign out, and deleting the account.
+/// Profile — account details, delivery location, runner ratings, sign out, and deleting the account.
 struct ProfileView: View {
     @Environment(AppModel.self) private var model
     @State private var choosingDestination = false
     @State private var confirmingDelete = false
     @State private var deleting = false
     @State private var deleteError: String?
+    /// Loaded on appear; the card stays hidden for someone who has never delivered.
+    @State private var runnerStats: RunnerStats?
 
     var body: some View {
         if let session = model.session {
@@ -39,6 +41,10 @@ struct ProfileView: View {
                     .buttonStyle(.plain)
                     .accessibilityHint("Change delivery location")
 
+                    if let runnerStats, runnerStats.deliveries > 0 {
+                        ratingsCard(runnerStats)
+                    }
+
                     Button("Delete Account", role: .destructive) { confirmingDelete = true }
                         .font(.subheadline.weight(.semibold))
                         .disabled(deleting)
@@ -52,6 +58,7 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .toolbarVisibility(.visible, for: .navigationBar)
             .toolbarVisibility(.hidden, for: .tabBar)
+            .task { runnerStats = try? await model.runnerStats() }
             .sheet(isPresented: $choosingDestination) { DestinationPicker() }
             .confirmationDialog("Delete your account?", isPresented: $confirmingDelete, titleVisibility: .visible) {
                 Button("Delete Account", role: .destructive) { delete() }
@@ -85,19 +92,51 @@ struct ProfileView: View {
     private func card(_ title: String, rows: [(String, String)]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title).font(.headline.bold()).foregroundStyle(Color.brandDeep)
-            ForEach(rows, id: \.0) { label, value in
-                HStack {
-                    Text(label).font(.subheadline).foregroundStyle(Color.inkSecondary)
-                    Spacer()
-                    Text(value).font(.subheadline.bold()).foregroundStyle(Color.ink)
-                        .multilineTextAlignment(.trailing)
-                }
-                .accessibilityElement(children: .combine)
-            }
+            ForEach(rows, id: \.0) { label, value in row(label, value) }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white, in: .rect(cornerRadius: 20))
         .contentShape(.rect(cornerRadius: 20))
+    }
+
+    /// Average stars, counts, and the tags customers picked, for someone who has delivered.
+    private func ratingsCard(_ stats: RunnerStats) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Ratings").font(.headline.bold()).foregroundStyle(Color.brandDeep)
+            if let rating = stats.rating {
+                HStack(spacing: 8) {
+                    Image(.star).resizable().frame(width: 24, height: 24)
+                    Text(rating.formatted(.number.precision(.fractionLength(1))))
+                        .font(.title.bold()).foregroundStyle(Color.ink)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Average \(rating.formatted()) stars")
+            } else {
+                Text("No ratings yet. They show up here after customers rate your deliveries.")
+                    .font(.subheadline).foregroundStyle(Color.inkSecondary)
+            }
+            row("Ratings", "\(stats.ratings)")
+            row("Deliveries", "\(stats.deliveries)")
+            let tags = stats.tags.filter { $0.count > 0 }
+            if !tags.isEmpty {
+                FlowLayout(spacing: 8) {
+                    ForEach(tags, id: \.tag) { tag in Pill(text: "\(tag.tag) · \(tag.count)") }
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white, in: .rect(cornerRadius: 20))
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.subheadline).foregroundStyle(Color.inkSecondary)
+            Spacer()
+            Text(value).font(.subheadline.bold()).foregroundStyle(Color.ink)
+                .multilineTextAlignment(.trailing)
+        }
+        .accessibilityElement(children: .combine)
     }
 }

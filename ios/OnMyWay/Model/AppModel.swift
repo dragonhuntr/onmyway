@@ -110,6 +110,12 @@ final class AppModel {
         clearSignedIn()
     }
 
+    /// The signed-in person's ratings as a runner, for Profile.
+    func runnerStats() async throws -> RunnerStats? {
+        let account: API.Account = try await call("GET", "me")
+        return account.runner
+    }
+
     private func clearSignedIn() {
         orderWatch?.cancel()
         notifications = []

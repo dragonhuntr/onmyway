@@ -193,6 +193,18 @@ data class Runner(
         ).joinToString(" · ")
 }
 
+/** How the signed-in person has been rated as a runner, from `GET /me`. */
+@Serializable
+data class RunnerStats(
+    val rating: Double? = null,
+    val ratings: Int,
+    val deliveries: Int,
+    val tags: List<TagCount>,
+) {
+    @Serializable
+    data class TagCount(val tag: String, val count: Int)
+}
+
 /** An order a runner can pick up along their route. */
 @Serializable
 data class DeliveryRequest(

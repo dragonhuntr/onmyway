@@ -1,11 +1,14 @@
 package com.onmyway.app.ui.order
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,16 +42,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onmyway.app.R
 import com.onmyway.app.model.ApiException
 import com.onmyway.app.model.AppModel
+import com.onmyway.app.model.RunnerStats
+import com.onmyway.app.model.plain
 import com.onmyway.app.ui.shared.DestinationPicker
 import com.onmyway.app.ui.theme.OmwColors
 import com.onmyway.app.ui.theme.OmwType
+import com.onmyway.app.ui.theme.Pill
 import com.onmyway.app.ui.theme.bold
 import com.onmyway.app.ui.theme.semibold
 import kotlinx.coroutines.launch
@@ -62,7 +73,13 @@ fun ProfileScreen(model: AppModel) {
     var confirmingDelete by rememberSaveable { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
+    // Loaded on open; the card stays hidden for someone who has never delivered.
+    var runnerStats by remember { mutableStateOf<RunnerStats?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        runnerStats = try { model.runnerStats() } catch (e: ApiException) { null }
+    }
 
     Column(
         modifier = Modifier
@@ -153,6 +170,11 @@ fun ProfileScreen(model: AppModel) {
             onClick = { choosingDestination = true },
             onClickLabel = "Change delivery location",
         )
+
+        runnerStats?.takeIf { it.deliveries > 0 }?.let { stats ->
+            Spacer(Modifier.height(16.dp))
+            RatingsCard(stats)
+        }
 
         Spacer(Modifier.height(28.dp))
 
@@ -251,23 +273,78 @@ private fun CardSection(
             color = OmwColors.BrandDeep,
         )
 
-        items.forEach { (label, value) ->
+        items.forEach { (label, value) -> CardRow(label, value) }
+    }
+}
+
+/** Average stars, counts, and the tags customers picked, for someone who has delivered. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RatingsCard(stats: RunnerStats) {
+    val tags = stats.tags.filter { it.count > 0 }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .background(Color.White, RoundedCornerShape(20.dp))
+            .padding(20.dp),
+    ) {
+        Text(
+            text = "Ratings",
+            style = OmwType.Headline.bold,
+            color = OmwColors.BrandDeep,
+        )
+        val rating = stats.rating
+        if (rating != null) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clearAndSetSemantics { contentDescription = "Average ${rating.plain()} stars" },
             ) {
+                Image(painterResource(R.drawable.star), null, Modifier.size(24.dp))
                 Text(
-                    text = label,
-                    style = OmwType.Subheadline,
-                    color = OmwColors.InkSecondary,
-                )
-                Text(
-                    text = value,
-                    style = OmwType.Subheadline.bold,
+                    text = "%.1f".format(rating),
+                    style = OmwType.Title2.bold.copy(fontSize = 28.sp),
                     color = OmwColors.Ink,
                 )
             }
+        } else {
+            Text(
+                text = "No ratings yet. They show up here after customers rate your deliveries.",
+                style = OmwType.Subheadline,
+                color = OmwColors.InkSecondary,
+            )
         }
+        CardRow("Ratings", "${stats.ratings}")
+        CardRow("Deliveries", "${stats.deliveries}")
+        if (tags.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                tags.forEach { Pill("${it.tag} · ${it.count}") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = OmwType.Subheadline,
+            color = OmwColors.InkSecondary,
+        )
+        Text(
+            text = value,
+            style = OmwType.Subheadline.bold,
+            color = OmwColors.Ink,
+        )
     }
 }

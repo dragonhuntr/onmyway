@@ -78,6 +78,8 @@ extension API {
         let firstName: String
         let lastName: String
         let token: String
+        /// Only on `GET /me`.
+        let runner: RunnerStats?
     }
 
     static func register(

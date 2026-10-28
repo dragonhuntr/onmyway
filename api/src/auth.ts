@@ -1,6 +1,7 @@
 import type { Context } from "./http.ts";
 import type { Env, User } from "./env.ts";
 import { balanceCents } from "./money.ts";
+import { runnerProfile } from "./ratings.ts";
 import { HttpError, decodeBase64, encodeBase64, json, minutesFromNow, now, readJSON, text } from "./http.ts";
 
 const iterations = 100_000;
@@ -65,9 +66,10 @@ export async function login(c: Context): Promise<Response> {
   return json(publicUser(user, await createSession(c.env, user.id)));
 }
 
+/** GET /me — the account, plus `runner` rating stats for Profile. */
 export async function me(c: Context): Promise<Response> {
   const { user, token } = await authenticate(c);
-  return json(publicUser(user, token));
+  return json({ ...publicUser(user, token), runner: await runnerProfile(c.env, user.id) });
 }
 
 export async function logout(c: Context): Promise<Response> {
