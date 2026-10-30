@@ -253,13 +253,21 @@ export async function acceptOrder(c: Context): Promise<Response> {
     throw new HttpError(409, "Finish your current delivery first.", "delivery_active");
   }
   const tripID = text((await readJSON(c.request)).tripId, 64) || (await currentTrip(c.env, user.id))?.id || null;
+  // The busy check is repeated inside the UPDATE so two quick taps on different requests can't both
+  // land: each statement runs on its own, so the second sees the first's accepted order.
   const result = await c.env.DB.prepare(
     `UPDATE orders SET status = 'accepted', runner_id = ?2, trip_id = ?3, accepted_at = ?4
-     WHERE id = ?1 AND status = 'matching' AND customer_id != ?2`,
+     WHERE id = ?1 AND status = 'matching' AND customer_id != ?2
+       AND NOT EXISTS (SELECT 1 FROM orders WHERE runner_id = ?2 AND status IN ('accepted', 'picked_up'))`,
   )
     .bind(c.params.id, user.id, tripID, now())
     .run();
-  if (!result.meta.changes) throw new HttpError(409, "Another runner took this order.", "order_taken");
+  if (!result.meta.changes) {
+    if (await activeDelivery(c.env, user.id)) {
+      throw new HttpError(409, "Finish your current delivery first.", "delivery_active");
+    }
+    throw new HttpError(409, "Another runner took this order.", "order_taken");
+  }
   await c.env.DB.prepare("UPDATE users SET runner_available = 1, runner_seen_at = ?2 WHERE id = ?1")
     .bind(user.id, now())
     .run();

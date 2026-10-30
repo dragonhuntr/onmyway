@@ -181,6 +181,37 @@ await call("POST", `/orders/${second.order.id}/release`, { token: wiya.token });
 assert.equal((await call("GET", `/orders/${second.order.id}`, { token: evan.token })).order.status, "matching");
 assert.equal((await call("POST", `/orders/${second.order.id}/cancel`, { token: evan.token })).order.status, "cancelled");
 
+// A runner can't hold two deliveries, even tapping two requests at the same moment
+const kai = await person("Kai", "Moss");
+const noa = await person("Noa", "Reyes");
+const [kaiOrder, noaOrder] = await Promise.all(
+  [kai, noa].map((customer, index) =>
+    call("POST", "/orders", {
+      token: customer.token,
+      body: { restaurantId: "paws", orderNumber: `60${index}`, tipCents: 0, destination: { buildingId: "burke" } },
+      expect: 201,
+    }),
+  ),
+);
+const taps = await Promise.all(
+  [kaiOrder, noaOrder].map((order) =>
+    fetch(`${base}/orders/${order.order.id}/accept`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${wiya.token}`, "Content-Type": "application/json" },
+      body: "{}",
+    }).then(async (response) => ({ status: response.status, body: await response.json() })),
+  ),
+);
+assert.deepEqual(taps.map((tap) => tap.status).sort(), [200, 409], JSON.stringify(taps));
+assert.equal(taps.find((tap) => tap.status === 409).body.code, "delivery_active");
+const won = taps.findIndex((tap) => tap.status === 200);
+const lost = [kaiOrder, noaOrder][1 - won];
+assert.equal((await call("GET", `/orders/${lost.order.id}`, { token: [kai, noa][1 - won].token })).order.status, "matching");
+await call("POST", `/orders/${[kaiOrder, noaOrder][won].order.id}/release`, { token: wiya.token });
+for (const [customer, order] of [[kai, kaiOrder], [noa, noaOrder]]) {
+  await call("POST", `/orders/${order.order.id}/cancel`, { token: customer.token });
+}
+
 // Past orders: finished ones only, newest first, with what the Orders tab shows
 const past = await call("GET", "/orders", { token: evan.token });
 assert.deepEqual(past.orders.map((o) => [o.id, o.status]), [[second.order.id, "cancelled"], [orderID, "delivered"]]);
