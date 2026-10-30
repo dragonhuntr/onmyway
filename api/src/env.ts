@@ -43,6 +43,7 @@ export type User = {
   runner_lat: number | null;
   runner_lng: number | null;
   runner_seen_at: string | null;
+  email_verified_at: string | null;
 };
 
 export function paymentsEnabled(env: Env): boolean {

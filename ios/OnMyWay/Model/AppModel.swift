@@ -7,7 +7,14 @@ private let tokenDefaultsKey = "accountToken"
 
 extension API.Account {
     var sessionUser: SessionUser {
-        SessionUser(id: id, username: username, email: email, firstName: firstName, lastName: lastName)
+        SessionUser(
+            id: id,
+            username: username,
+            email: email,
+            firstName: firstName,
+            lastName: lastName,
+            emailVerified: emailVerified ?? true
+        )
     }
 }
 
@@ -69,6 +76,8 @@ final class AppModel {
         do {
             let account = try await API.currentAccount(token: token)
             session = account.sessionUser
+            // Everything else is refused until the email is verified; VerifyEmailView loads it afterwards.
+            guard account.sessionUser.emailVerified else { return }
             if let pendingPushKind {
                 self.pendingPushKind = nil
                 openFromPush(pendingPushKind)
@@ -107,6 +116,20 @@ final class AppModel {
         await store(account)
     }
 
+    /// Finishes sign-up with the emailed code, then loads the app like a fresh sign-in.
+    func verifyEmail(code: String) async throws {
+        guard let token else { throw APIError(message: "Sign in again.") }
+        let account = try await API.verifyEmail(code: code, token: token)
+        session = account.sessionUser
+        await loadSignedIn()
+    }
+
+    /// Emails a new sign-up code.
+    func resendVerification() async throws {
+        guard let token else { throw APIError(message: "Sign in again.") }
+        try await API.resendVerification(token: token)
+    }
+
     func signOut() {
         let token = token
         Task { let _: Empty? = try? await API.send("POST", "logout", token: token) }
@@ -143,6 +166,7 @@ final class AppModel {
         token = account.token
         UserDefaults.standard.set(account.token, forKey: tokenDefaultsKey)
         session = account.sessionUser
+        guard account.sessionUser.emailVerified else { return }
         await loadSignedIn()
     }
 

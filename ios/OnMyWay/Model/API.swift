@@ -77,6 +77,8 @@ extension API {
         let email: String
         let firstName: String
         let lastName: String
+        /// Missing from Workers that predate email verification, which treat everyone as verified.
+        let emailVerified: Bool?
         let token: String
         /// Only on `GET /me`.
         let runner: RunnerStats?
@@ -114,6 +116,16 @@ extension API {
             "code": code,
             "password": password,
         ], token: nil)
+    }
+
+    /// Emails a new sign-up code. At most one a minute; sooner asks are ignored.
+    static func resendVerification(token: String) async throws {
+        let _: Empty = try await send("POST", "email-verification", token: token)
+    }
+
+    /// Checks the emailed sign-up code and returns the now-verified account.
+    static func verifyEmail(code: String, token: String) async throws -> Account {
+        try await send("POST", "email-verification/confirm", body: ["code": code], token: token)
     }
 
     static func currentAccount(token: String) async throws -> Account {

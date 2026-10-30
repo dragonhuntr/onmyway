@@ -15,6 +15,7 @@ Built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv
 | 01A | Login | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
 | 01B | Register | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
 | — | Forgot password (email → code + new password) | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
+| — | Verify email (6-digit code after sign-up) | `Screens/Auth/AuthView.swift` | `auth/AuthScreens.kt` |
 | 01 | Home | `Screens/Order/HomeView.swift` | `order/HomeScreen.kt` |
 | 02 | Order web view (Transact) | `Screens/Order/OrderFlow.swift` | `order/OrderFlow.kt` |
 | 03 | Enter order number | `Screens/Order/OrderFlow.swift` | `order/OrderFlow.kt` |
@@ -31,7 +32,7 @@ Built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv
 
 ## Flows
 
-- **Account:** Login (01A) or Register (01B) with a `@psu.edu` email, through the Worker, which reads and writes D1.
+- **Account:** Login (01A) or Register (01B) with a `@psu.edu` email, through the Worker, which reads and writes D1. A new account enters the 6-digit code emailed to it before it can order or run.
 - **Customer:** Home → tap a restaurant → Transact web ordering → *Enter order number* → *Send to runner* → Stripe PaymentSheet (delivery fee + tip, held until drop-off) → matching → tracked in the **Orders** tab, with in-app chat → Delivered (rate + extra tip, or order again).
 - **Runner:** **Run** tab → add the walk you're taking → orders along it, sorted by detour → request details → *Accept delivery* → confirm pickup → confirm drop-off (location shared while delivering) → shows up in **Earnings** → *Cash out* through Stripe Connect.
 
@@ -42,6 +43,7 @@ The app polls the Worker: the active order every 3 seconds, the runner feed ever
 The app talks only to the Worker in `api/src/index.ts`, deployed at `https://onmyway-api.onmyway-wyl.workers.dev`. The Worker reads and writes the Cloudflare D1 database `onmyway`. Tables are created by the migrations in `api/migrations/`.
 
 - **Register** (`POST /register`) stores the account in `users`. The password is a PBKDF2 hash, not the password itself. A random token is stored in `sessions` and returned to the app.
+- **Verify email:** Register also emails a 6-digit code (same limits as a reset code: 15 minutes, 5 wrong tries, one a minute). Until `POST /email-verification/confirm` `{ code }` accepts it, the account can sign in, read `/me`, register a device and read notifications, but every other endpoint answers 403 `email_unverified`, so nobody orders or runs on an address they don't own. `POST /email-verification` sends a new code. A finished password reset also counts as verifying, since it proves the same thing. Accounts from before migration 0009 start unverified and are asked on their next launch.
 - **Login** (`POST /login`) looks up the username, checks the password, stores a new `sessions` token, and returns it.
 - **Forgot password** (link on Login): `POST /password-reset` `{ email }` emails a 6-digit code (`api/src/email.ts`, see *Email setup*). It always answers `{ ok: true }`, so it never reveals whether an email has an account. The code is stored only as a PBKDF2 hash in `password_resets`, lasts 15 minutes, allows 5 wrong tries, and a new one can be sent once a minute. `POST /password-reset/confirm` `{ email, code, password }` sets the new password, ends every existing sign-in, and returns a fresh token like `/login`. Deleted accounts can't reset.
 - The app saves that token. On the next launch it sends the token to `GET /me` and restores the account. Tokens last 30 days; `POST /logout` ends one.

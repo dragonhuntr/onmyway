@@ -270,6 +270,82 @@ private fun ForgotPasswordScreen(model: AppModel, onBack: () -> Unit) {
     }
 }
 
+/** Shown after sign-up (and on launch) until the emailed 6-digit code is entered. */
+@Composable
+fun VerifyEmailScreen(model: AppModel) {
+    var code by rememberSaveable { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    AuthScaffold {
+        Title("Verify", Modifier.padding(top = 64.dp, bottom = 28.dp))
+        Text(
+            "We emailed a 6-digit code to ${model.session?.email ?: "your email"}. Enter it to start ordering and running.",
+            style = OmwType.Body.semibold,
+            color = OmwColors.InkSecondary,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        AuthField(
+            "6-Digit Code",
+            code,
+            { code = it.filter(Char::isDigit).take(6) },
+            keyboard = KeyboardType.Number,
+            contentType = ContentType.SmsOtpCode,
+        )
+
+        message?.let { ErrorText(it) }
+
+        AuthButton("Verify Email", enabled = code.length == 6 && !isSubmitting, modifier = Modifier.padding(top = 8.dp)) {
+            scope.launch {
+                isSubmitting = true
+                message = null
+                try {
+                    model.verifyEmail(code)
+                } catch (e: Exception) {
+                    message = e.message
+                } finally {
+                    isSubmitting = false
+                }
+            }
+        }
+
+        Text(
+            "Send a new code",
+            style = OmwType.Title3.bold,
+            color = OmwColors.Ink,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .clickable(enabled = !isSubmitting, role = Role.Button) {
+                    scope.launch {
+                        isSubmitting = true
+                        try {
+                            model.resendVerification()
+                            code = ""
+                            message = "Sent. A new code can go out once a minute, and the newest one is the one that works."
+                        } catch (e: Exception) {
+                            message = e.message
+                        } finally {
+                            isSubmitting = false
+                        }
+                    }
+                },
+        )
+
+        Text(
+            "Sign out",
+            style = OmwType.Body.semibold,
+            color = OmwColors.InkSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button) { model.signOut() },
+        )
+    }
+}
+
 @Composable
 private fun AuthScaffold(spacing: Int = 16, content: @Composable () -> Unit) {
     Column(

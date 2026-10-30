@@ -2,12 +2,14 @@ import type { Env } from "./env.ts";
 import { HttpError, Router, cors, json } from "./http.ts";
 import {
   confirmPasswordReset,
+  confirmVerification,
   deleteAccount,
   login,
   logout,
   me,
   register,
   requestPasswordReset,
+  resendVerification,
 } from "./auth.ts";
 import { home, listBuildings, setDestination } from "./places.ts";
 import { activeOrder, cancelOrder, confirmPayment, createOrder, getOrder, listOrders, reportOrder } from "./orders.ts";
@@ -39,6 +41,8 @@ const router = new Router()
   .on("POST", "/logout", logout)
   .on("POST", "/password-reset", requestPasswordReset)
   .on("POST", "/password-reset/confirm", confirmPasswordReset)
+  .on("POST", "/email-verification", resendVerification)
+  .on("POST", "/email-verification/confirm", confirmVerification)
   .on("GET", "/me", me)
   .on("DELETE", "/me", deleteAccount)
   .on("PUT", "/me/destination", setDestination)

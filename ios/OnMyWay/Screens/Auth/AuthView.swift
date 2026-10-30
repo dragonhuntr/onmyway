@@ -293,6 +293,97 @@ struct ForgotPasswordView: View {
     }
 }
 
+/// Shown after sign-up (and on launch) until the emailed 6-digit code is entered.
+struct VerifyEmailView: View {
+    @Environment(AppModel.self) private var model
+    @State private var code = ""
+    @State private var isSubmitting = false
+    @State private var message: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                Text("Verify")
+                    .font(.system(size: 64, weight: .bold))
+                    .foregroundStyle(Color.brand)
+                    .frame(maxWidth: .infinity)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .padding(.top, 64)
+                    .padding(.bottom, 28)
+
+                Text("We emailed a 6-digit code to \(model.session?.email ?? "your email"). Enter it to start ordering and running.")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                AuthField(prompt: "6-Digit Code", text: $code, keyboard: .numberPad, contentType: .oneTimeCode)
+                    .onChange(of: code) { _, newValue in
+                        let digits = String(newValue.filter(\.isNumber).prefix(6))
+                        if digits != newValue { code = digits }
+                    }
+
+                if let message {
+                    Text(message)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button("Verify Email") {
+                    Task { await verify() }
+                }
+                .buttonStyle(AuthButtonStyle())
+                .disabled(code.count != 6 || isSubmitting)
+                .padding(.top, 8)
+
+                Button("Send a new code") {
+                    Task { await resend() }
+                }
+                .font(.title3.bold())
+                .foregroundStyle(Color.ink)
+                .frame(maxWidth: .infinity)
+                .disabled(isSubmitting)
+                .padding(.top, 4)
+
+                Button("Sign out") {
+                    model.signOut()
+                }
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.inkSecondary)
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color.canvas)
+    }
+
+    private func verify() async {
+        isSubmitting = true
+        message = nil
+        defer { isSubmitting = false }
+        do {
+            try await model.verifyEmail(code: code)
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    private func resend() async {
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            try await model.resendVerification()
+            code = ""
+            message = "Sent. A new code can go out once a minute, and the newest one is the one that works."
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+}
+
 private struct AuthField: View {
     let prompt: String
     @Binding var text: String
@@ -353,4 +444,8 @@ private struct AuthButtonStyle: ButtonStyle {
 
 #Preview("Forgot Password") {
     NavigationStack { ForgotPasswordView() }.environment(AppModel())
+}
+
+#Preview("Verify Email") {
+    VerifyEmailView().environment(AppModel())
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.onmyway.app.model.AppModel
 import com.onmyway.app.model.AppTab
 import com.onmyway.app.ui.auth.AuthFlow
+import com.onmyway.app.ui.auth.VerifyEmailScreen
 import com.onmyway.app.ui.earnings.EarningsScreen
 import com.onmyway.app.ui.order.DeliveredScreen
 import com.onmyway.app.ui.order.HomeScreen
@@ -46,6 +47,7 @@ fun App(model: AppModel) {
             contentAlignment = Alignment.Center,
         ) { CircularProgressIndicator(color = OmwColors.InkSecondary) }
         model.session == null -> AuthFlow(model)
+        model.session?.emailVerified == false -> VerifyEmailScreen(model)
         else -> MainTabs(model)
     }
 }

@@ -118,6 +118,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         val token = token ?: return
         try {
             session = Api.currentAccount(token).sessionUser
+            // Everything else is refused until the email is verified; VerifyEmailScreen loads it afterwards.
+            if (session?.emailVerified == false) return
             pendingPushKind?.let { kind ->
                 pendingPushKind = null
                 openFromPush(kind)
@@ -141,6 +143,18 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     /** Finishes Forgot Password with the emailed code, then signs in like [logIn]. */
     suspend fun resetPassword(email: String, code: String, password: String) {
         store(Api.resetPassword(email, code, password))
+    }
+
+    /** Finishes sign-up with the emailed code, then loads the app like a fresh sign-in. */
+    suspend fun verifyEmail(code: String) {
+        val token = token ?: throw ApiException("Sign in again.")
+        session = Api.verifyEmail(code, token).sessionUser
+        loadSignedIn()
+    }
+
+    /** Emails a new sign-up code. */
+    suspend fun resendVerification() {
+        Api.resendVerification(token ?: throw ApiException("Sign in again."))
     }
 
     fun signOut() {
@@ -184,6 +198,7 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         token = account.token
         prefs.edit { putString(TOKEN_KEY, account.token) }
         session = account.sessionUser
+        if (!account.emailVerified) return
         loadSignedIn()
     }
 

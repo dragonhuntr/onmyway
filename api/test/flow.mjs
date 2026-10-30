@@ -21,11 +21,20 @@ async function call(method, path, { token, body, expect = 200 } = {}) {
   return data;
 }
 
-async function person(first, last) {
+/** Registers without verifying; the Worker hands back the emailed code as `devCode`. */
+async function signUp(first, last) {
   const username = `${first.toLowerCase()}-${run}`;
   return call("POST", "/register", {
     body: { email: `${username}@psu.edu`, username, firstName: first, lastName: last, password: "password123" },
   });
+}
+
+/** Registers and verifies the email, ready to order and run. */
+async function person(first, last) {
+  const account = await signUp(first, last);
+  const verified = await call("POST", "/email-verification/confirm", { token: account.token, body: { code: account.devCode } });
+  assert.equal(verified.emailVerified, true);
+  return account;
 }
 
 // Accounts
@@ -217,6 +226,47 @@ await call("POST", "/register", {
 });
 await call("DELETE", "/me", { token: wiya.token });
 assert.equal((await call("GET", "/me", { token: relogin.token, expect: 401 })).code, "signed_out");
+
+// Email verification. Signed in straight away, but ordering and running wait for the code.
+const ada = await signUp("Ada", "Park");
+assert.equal(ada.emailVerified, false);
+assert.match(ada.devCode, /^\d{6}$/);
+assert.equal((await call("GET", "/me", { token: ada.token })).emailVerified, false);
+assert.equal((await call("GET", "/home", { token: ada.token, expect: 403 })).code, "email_unverified");
+assert.equal((await call("GET", "/runner/requests", { token: ada.token, expect: 403 })).code, "email_unverified");
+await call("GET", "/notifications", { token: ada.token });
+assert.equal((await call("POST", "/email-verification", { token: ada.token })).devCode, null, "cooldown");
+await call("POST", "/email-verification/confirm", { token: ada.token, body: { code: "12" }, expect: 400 });
+const adaWrong = ada.devCode === "000000" ? "111111" : "000000";
+assert.equal(
+  (await call("POST", "/email-verification/confirm", { token: ada.token, body: { code: adaWrong }, expect: 400 })).code,
+  "verification_code",
+);
+const adaVerified = await call("POST", "/email-verification/confirm", { token: ada.token, body: { code: ada.devCode } });
+assert.equal(adaVerified.emailVerified, true);
+assert.equal(adaVerified.token, ada.token);
+await call("GET", "/home", { token: ada.token });
+// Already verified: confirming again is a no-op, resending sends nothing.
+await call("POST", "/email-verification/confirm", { token: ada.token, body: { code: adaWrong } });
+assert.equal((await call("POST", "/email-verification", { token: ada.token })).verified, true);
+// Five wrong tries use the code up
+const leo = await signUp("Leo", "Diaz");
+const leoWrong = leo.devCode === "000000" ? "111111" : "000000";
+for (let attempt = 1; attempt <= 4; attempt += 1) {
+  await call("POST", "/email-verification/confirm", { token: leo.token, body: { code: leoWrong }, expect: 400 });
+}
+assert.equal(
+  (await call("POST", "/email-verification/confirm", { token: leo.token, body: { code: leoWrong }, expect: 429 })).code,
+  "verification_locked",
+);
+await call("POST", "/email-verification/confirm", { token: leo.token, body: { code: leo.devCode }, expect: 400 });
+// A password reset proves the email too
+const leoReset = (await call("POST", "/password-reset", { body: { email: `${leo.username}@psu.edu` } })).devCode;
+const leoDone = await call("POST", "/password-reset/confirm", {
+  body: { email: `${leo.username}@psu.edu`, code: leoReset, password: "password123" },
+});
+assert.equal(leoDone.emailVerified, true);
+await call("GET", "/home", { token: leoDone.token });
 
 const sam = await person("Sam", "Ortiz");
 await call("POST", "/logout", { token: sam.token });

@@ -7,6 +7,8 @@ struct SessionUser: Equatable {
     var email: String
     var firstName: String
     var lastName: String
+    /// False until the emailed sign-up code is entered; ordering and running wait for it.
+    var emailVerified: Bool
 
     /// "Evan B."
     var shortName: String {

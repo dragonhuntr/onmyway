@@ -26,6 +26,8 @@ struct RootView: View {
                 .background(Color.canvas)
         } else if model.session == nil {
             LoginView()
+        } else if model.session?.emailVerified == false {
+            VerifyEmailView()
         } else {
             mainTabs
         }

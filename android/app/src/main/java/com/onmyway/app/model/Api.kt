@@ -108,10 +108,12 @@ object Api {
         val firstName: String,
         val lastName: String,
         val token: String,
+        /** Missing from Workers that predate email verification, which treat everyone as verified. */
+        val emailVerified: Boolean = true,
         /** Only on `GET /me`. */
         val runner: RunnerStats? = null,
     ) {
-        val sessionUser: SessionUser get() = SessionUser(id, username, email, firstName, lastName)
+        val sessionUser: SessionUser get() = SessionUser(id, username, email, firstName, lastName, emailVerified)
     }
 
     suspend fun register(email: String, firstName: String, lastName: String, username: String, password: String): Account =
@@ -142,6 +144,15 @@ object Api {
             body = mapOf("email" to email, "code" to code, "password" to password),
             token = null,
         )
+
+    /** Emails a new sign-up code. At most one a minute; sooner asks are ignored. */
+    suspend fun resendVerification(token: String) {
+        send<Empty>("POST", "email-verification", token = token)
+    }
+
+    /** Checks the emailed sign-up code and returns the now-verified account. */
+    suspend fun verifyEmail(code: String, token: String): Account =
+        send("POST", "email-verification/confirm", body = mapOf("code" to code), token = token)
 
     suspend fun currentAccount(token: String): Account = send("GET", "me", token = token)
 }

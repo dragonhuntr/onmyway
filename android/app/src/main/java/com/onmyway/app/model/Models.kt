@@ -20,6 +20,8 @@ data class SessionUser(
     val email: String,
     val firstName: String,
     val lastName: String,
+    /** False until the emailed sign-up code is entered; ordering and running wait for it. */
+    val emailVerified: Boolean = true,
 ) {
     /** "Evan B." */
     val shortName: String

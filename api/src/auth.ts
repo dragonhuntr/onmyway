@@ -46,8 +46,13 @@ export async function register(c: Context): Promise<Response> {
     .bind(userID, username, email, firstName, lastName, await hashPassword(password, salt), encodeBase64(salt))
     .run();
 
-  const user = await userByID(c.env, userID);
-  return json(publicUser(user!, await createSession(c.env, userID)));
+  const user = (await userByID(c.env, userID))!;
+  const token = await createSession(c.env, userID);
+  // Signed in straight away, but ordering and running wait for the emailed code (POST /email-verification/confirm).
+  const sending = sendVerificationCode(c.env, user);
+  if (exposesCodes(c.env)) return json({ ...publicUser(user, token), devCode: await sending });
+  c.ctx.waitUntil(sending);
+  return json(publicUser(user, token));
 }
 
 export async function login(c: Context): Promise<Response> {
@@ -116,18 +121,136 @@ export async function deleteAccount(c: Context): Promise<Response> {
     ).bind(user.id, at),
     c.env.DB.prepare("UPDATE trips SET cancelled_at = ?2 WHERE runner_id = ?1 AND cancelled_at IS NULL").bind(user.id, at),
     c.env.DB.prepare("DELETE FROM notifications WHERE user_id = ?1").bind(user.id),
+    c.env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(user.id),
+    c.env.DB.prepare("DELETE FROM email_verifications WHERE user_id = ?1").bind(user.id),
     c.env.DB.prepare("DELETE FROM devices WHERE user_id = ?1").bind(user.id),
     c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(user.id),
   ]);
   return json({ ok: true });
 }
 
-// MARK: Forgot password
+// MARK: Emailed codes
 
-const resetMinutes = 15;
-const resetTries = 5;
+/** A code lasts this long and allows this many wrong tries. */
+const codeMinutes = 15;
+const codeTries = 5;
 /** A new code isn't sent while the last one is younger than this; stops email floods and code cycling. */
-const resetCooldownSeconds = 60;
+const codeCooldownSeconds = 60;
+
+/** One pending code per account per purpose. Both tables have the same columns. */
+type CodeTable = "password_resets" | "email_verifications";
+
+/** Only with `PAYMENTS=off` (local development) and no email provider; never in production. */
+function exposesCodes(env: Env): boolean {
+  return env.PAYMENTS === "off" && !env.RESEND_API_KEY;
+}
+
+/** Stores a fresh code for the account, replacing any older one. Null while the cooldown is running. */
+async function storeCode(env: Env, table: CodeTable, userID: string): Promise<string | null> {
+  const recent = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE user_id = ?1 AND created_at > ?2`)
+    .bind(userID, new Date(Date.now() - codeCooldownSeconds * 1000).toISOString())
+    .first();
+  if (recent) return null;
+
+  const code = sixDigitCode();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  await env.DB.prepare(
+    `INSERT INTO ${table} (user_id, code_hash, code_salt, attempts, created_at, expires_at)
+     VALUES (?1, ?2, ?3, 0, ?4, ?5)
+     ON CONFLICT(user_id) DO UPDATE SET code_hash = ?2, code_salt = ?3, attempts = 0, created_at = ?4, expires_at = ?5`,
+  )
+    .bind(userID, await hashPassword(code, salt), encodeBase64(salt), now(), minutesFromNow(codeMinutes))
+    .run();
+  return code;
+}
+
+/**
+ * Checks `code` against the account's pending one. Throws `wrong` for a bad or expired code, and
+ * `locked` (dropping the code) on the last allowed miss. The row is left for the caller to delete on success.
+ */
+async function checkCode(
+  env: Env,
+  table: CodeTable,
+  userID: string,
+  code: string,
+  wrong: HttpError,
+  locked: HttpError,
+): Promise<void> {
+  // Count the try before checking it, so parallel guesses can't get past the limit.
+  const pending = await env.DB.prepare(
+    `UPDATE ${table} SET attempts = attempts + 1
+     WHERE user_id = ?1 AND expires_at > ?2 AND attempts < ?3
+     RETURNING code_hash, code_salt, attempts`,
+  )
+    .bind(userID, now(), codeTries)
+    .first<{ code_hash: string; code_salt: string; attempts: number }>();
+  if (!pending) throw wrong;
+  if ((await hashPassword(code, decodeBase64(pending.code_salt))) === pending.code_hash) return;
+  if (pending.attempts < codeTries) throw wrong;
+  await env.DB.prepare(`DELETE FROM ${table} WHERE user_id = ?1`).bind(userID).run();
+  throw locked;
+}
+
+function sixDigits(value: unknown): string {
+  const code = text(value, 20);
+  if (!/^\d{6}$/.test(code)) throw new HttpError(400, "Enter the 6-digit code from the email.");
+  return code;
+}
+
+// MARK: Email verification
+
+/**
+ * Emails a code proving the account owns its address. Returns the code, or null when it wasn't sent
+ * (cooldown, or the send failed). Never throws, so it can run after the response.
+ */
+async function sendVerificationCode(env: Env, user: User): Promise<string | null> {
+  try {
+    const code = await storeCode(env, "email_verifications", user.id);
+    if (!code) return null;
+    await sendEmail(env, {
+      to: user.email,
+      subject: `${code} is your On My Way code`,
+      text: `Welcome to On My Way, ${user.first_name}. Your email verification code is ${code}. It expires in ${codeMinutes} minutes.\n\nIf you didn't make an On My Way account, ignore this email.`,
+    });
+    return code;
+  } catch (error) {
+    console.warn("Verification email failed", error);
+    return null;
+  }
+}
+
+/** POST /email-verification — sends a new code to the signed-in account's email. At most one a minute. */
+export async function resendVerification(c: Context): Promise<Response> {
+  const { user } = await authenticate(c);
+  if (user.email_verified_at) return json({ ok: true, verified: true });
+  const sending = sendVerificationCode(c.env, user);
+  if (exposesCodes(c.env)) return json({ ok: true, verified: false, devCode: await sending });
+  c.ctx.waitUntil(sending);
+  return json({ ok: true, verified: false });
+}
+
+/** POST /email-verification/confirm `{ code }` — marks the email verified and returns the account like /me. */
+export async function confirmVerification(c: Context): Promise<Response> {
+  const { user, token } = await authenticate(c);
+  if (!user.email_verified_at) {
+    const code = sixDigits((await readJSON(c.request)).code);
+    await checkCode(
+      c.env,
+      "email_verifications",
+      user.id,
+      code,
+      new HttpError(400, "That code is wrong or has expired.", "verification_code"),
+      new HttpError(429, "Too many wrong codes. Send a new one.", "verification_locked"),
+    );
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE users SET email_verified_at = ?2 WHERE id = ?1").bind(user.id, now()),
+      c.env.DB.prepare("DELETE FROM email_verifications WHERE user_id = ?1").bind(user.id),
+    ]);
+  }
+  return json(publicUser((await userByID(c.env, user.id))!, token));
+}
+
+// MARK: Forgot password
 
 /**
  * POST /password-reset `{ email }` — emails a 6-digit code. Always `{ ok: true }`, whether or not the
@@ -137,7 +260,7 @@ export async function requestPasswordReset(c: Context): Promise<Response> {
   const body = await readJSON(c.request);
   const email = resetEmail(c.env, body.email);
   const sending = sendResetCode(c.env, email);
-  if (exposesResetCodes(c.env)) {
+  if (exposesCodes(c.env)) {
     // Local development only: hand the code back so test/flow.mjs can finish the reset.
     return json({ ok: true, devCode: await sending });
   }
@@ -147,16 +270,14 @@ export async function requestPasswordReset(c: Context): Promise<Response> {
 
 /**
  * POST /password-reset/confirm `{ email, code, password }` — sets the new password, ends every
- * other sign-in, and signs in here like /login.
+ * other sign-in, and signs in here like /login. Getting the code also proves the email, so it counts
+ * as verifying it.
  */
 export async function confirmPasswordReset(c: Context): Promise<Response> {
   const body = await readJSON(c.request);
   const email = resetEmail(c.env, body.email);
-  const code = text(body.code, 20);
+  const code = sixDigits(body.code);
   const password = typeof body.password === "string" ? body.password : "";
-  if (!/^\d{6}$/.test(code)) {
-    throw new HttpError(400, "Enter the 6-digit code from the email.");
-  }
   if (password.length < 8) {
     throw new HttpError(400, "Use a password of at least 8 characters.");
   }
@@ -166,34 +287,28 @@ export async function confirmPasswordReset(c: Context): Promise<Response> {
     .bind(email)
     .first<User>();
   if (!user) throw wrong;
-
-  // Count the try before checking it, so parallel guesses can't get past the limit.
-  const reset = await c.env.DB.prepare(
-    `UPDATE password_resets SET attempts = attempts + 1
-     WHERE user_id = ?1 AND expires_at > ?2 AND attempts < ?3
-     RETURNING code_hash, code_salt, attempts`,
-  )
-    .bind(user.id, now(), resetTries)
-    .first<{ code_hash: string; code_salt: string; attempts: number }>();
-  if (!reset) throw wrong;
-  if ((await hashPassword(code, decodeBase64(reset.code_salt))) !== reset.code_hash) {
-    if (reset.attempts < resetTries) throw wrong;
-    await c.env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(user.id).run();
-    throw new HttpError(429, "Too many wrong codes. Request a new one.", "reset_locked");
-  }
+  await checkCode(
+    c.env,
+    "password_resets",
+    user.id,
+    code,
+    wrong,
+    new HttpError(429, "Too many wrong codes. Request a new one.", "reset_locked"),
+  );
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
+  const at = now();
   await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE users SET password_hash = ?2, password_salt = ?3 WHERE id = ?1").bind(
-      user.id,
-      await hashPassword(password, salt),
-      encodeBase64(salt),
-    ),
+    c.env.DB.prepare(
+      `UPDATE users SET password_hash = ?2, password_salt = ?3, email_verified_at = COALESCE(email_verified_at, ?4)
+       WHERE id = ?1`,
+    ).bind(user.id, await hashPassword(password, salt), encodeBase64(salt), at),
     c.env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(user.id),
+    c.env.DB.prepare("DELETE FROM email_verifications WHERE user_id = ?1").bind(user.id),
     c.env.DB.prepare("DELETE FROM devices WHERE user_id = ?1").bind(user.id),
     c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(user.id),
   ]);
-  return json(publicUser(user, await createSession(c.env, user.id)));
+  return json(publicUser((await userByID(c.env, user.id))!, await createSession(c.env, user.id)));
 }
 
 function resetEmail(env: Env, value: unknown): string {
@@ -206,36 +321,19 @@ function resetEmail(env: Env, value: unknown): string {
   return email;
 }
 
-/** Only with `PAYMENTS=off` (local development) and no email provider; never in production. */
-function exposesResetCodes(env: Env): boolean {
-  return env.PAYMENTS === "off" && !env.RESEND_API_KEY;
-}
-
-/** Stores a fresh code for the account (replacing any older one) and emails it. Returns the code, or null. */
+/** Stores a fresh reset code for the account and emails it. Returns the code, or null. */
 async function sendResetCode(env: Env, email: string): Promise<string | null> {
   try {
     const user = await env.DB.prepare("SELECT id FROM users WHERE email = ?1 AND deleted_at IS NULL")
       .bind(email)
       .first<{ id: string }>();
     if (!user) return null;
-    const recent = await env.DB.prepare("SELECT 1 FROM password_resets WHERE user_id = ?1 AND created_at > ?2")
-      .bind(user.id, new Date(Date.now() - resetCooldownSeconds * 1000).toISOString())
-      .first();
-    if (recent) return null;
-
-    const code = sixDigitCode();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    await env.DB.prepare(
-      `INSERT INTO password_resets (user_id, code_hash, code_salt, attempts, created_at, expires_at)
-       VALUES (?1, ?2, ?3, 0, ?4, ?5)
-       ON CONFLICT(user_id) DO UPDATE SET code_hash = ?2, code_salt = ?3, attempts = 0, created_at = ?4, expires_at = ?5`,
-    )
-      .bind(user.id, await hashPassword(code, salt), encodeBase64(salt), now(), minutesFromNow(resetMinutes))
-      .run();
+    const code = await storeCode(env, "password_resets", user.id);
+    if (!code) return null;
     await sendEmail(env, {
       to: email,
       subject: `${code} is your On My Way code`,
-      text: `Your On My Way password reset code is ${code}. It expires in ${resetMinutes} minutes.\n\nIf you didn't ask to reset your password, ignore this email; your password hasn't changed.`,
+      text: `Your On My Way password reset code is ${code}. It expires in ${codeMinutes} minutes.\n\nIf you didn't ask to reset your password, ignore this email; your password hasn't changed.`,
     });
     return code;
   } catch (error) {
@@ -252,9 +350,16 @@ function sixDigitCode(): string {
   return String(value[0] % 1_000_000).padStart(6, "0");
 }
 
-/** The signed-in user, or a 401. */
+/**
+ * The signed-in user with a verified email, or a 401 / 403. Account endpoints (/me, /logout, devices,
+ * notifications, verification itself) use `authenticate` instead, so an unverified account can still reach them.
+ */
 export async function requireUser(c: Context): Promise<User> {
-  return (await authenticate(c)).user;
+  const { user } = await authenticate(c);
+  if (!user.email_verified_at) {
+    throw new HttpError(403, `Verify your email first. We sent a code to ${user.email}.`, "email_unverified");
+  }
+  return user;
 }
 
 export function publicUser(user: User, token: string) {
@@ -264,6 +369,7 @@ export function publicUser(user: User, token: string) {
     email: user.email,
     firstName: user.first_name,
     lastName: user.last_name,
+    emailVerified: Boolean(user.email_verified_at),
     token,
   };
 }
