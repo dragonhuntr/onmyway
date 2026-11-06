@@ -1,14 +1,23 @@
 package com.onmyway.app.ui.components
 
+import android.annotation.SuppressLint
+import android.graphics.Color as AndroidColor
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.onmyway.app.ui.theme.OmwColors
+import com.onmyway.app.ui.theme.OmwType
 import com.onmyway.app.model.Building
 import com.onmyway.app.model.Destination
 import com.onmyway.app.model.Place
@@ -30,7 +39,15 @@ fun DeliveryMap(
     runnerTitle: String = "Runner",
     headingToPickup: Boolean = true,
 ) {
-    if (pickup == null || dropoff == null) return
+    if (pickup == null || dropoff == null) {
+        Box(
+            Modifier.fillMaxWidth().height(height).background(OmwColors.MapGround),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Waiting for the pickup and drop-off locations", style = OmwType.Subheadline, color = OmwColors.InkSecondary)
+        }
+        return
+    }
     val labeled = buildings.mapNotNull { building ->
         val lat = building.lat ?: return@mapNotNull null
         val lng = building.lng ?: return@mapNotNull null
@@ -42,13 +59,7 @@ fun DeliveryMap(
     key(page) {
         AndroidView(
             factory = { context ->
-                WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                    loadDataWithBaseURL("https://tile.openstreetmap.org/", page, "text/html", "utf-8", null)
-                }
+                mapWebView(context, page)
             },
             update = { web ->
                 val point = runner ?: return@AndroidView
@@ -58,6 +69,23 @@ fun DeliveryMap(
         )
     }
 }
+
+@SuppressLint("SetJavaScriptEnabled")
+private fun mapWebView(context: android.content.Context, page: String): WebView =
+    WebView(context).apply {
+        setBackgroundColor(AndroidColor.parseColor("#E6EEE8"))
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.loadsImagesAutomatically = true
+        isVerticalScrollBarEnabled = false
+        isHorizontalScrollBarEnabled = false
+        webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                view?.evaluateJavascript("window.fitMap && window.fitMap()", null)
+            }
+        }
+        loadDataWithBaseURL("https://tile.openstreetmap.org/", page, "text/html", "utf-8", null)
+    }
 
 private fun mapPage(
     pickup: Pair<Double, Double>,
@@ -82,7 +110,7 @@ private fun mapPage(
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <style>
-          html,body,#map{height:100%;margin:0}
+          html,body,#map{height:100%;margin:0;background:#e6eee8}
           .leaflet-control-attribution{font-size:10px}
           .bldg{background:#fff;border:1px solid #d5d5d5;border-radius:8px;padding:1px 6px;font:600 11px sans-serif;color:#14211a;box-shadow:none;white-space:pre;text-align:center}
           .bldg:before{display:none}
@@ -90,13 +118,18 @@ private fun mapPage(
         </style>
         </head><body><div id="map"></div><script>
         const map = L.map('map', {zoomControl:false});
+        window.map = map;
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'OSM'}).addTo(map);
+        function pin(lat, lng, fill, title) {
+          return L.circleMarker([lat, lng], {radius:9, color:'#fff', weight:3, fillColor:fill, fillOpacity:1}).addTo(map)
+            .bindTooltip(title, {permanent:true, direction:'top'});
+        }
         for (const [name, lat, lng] of [$buildingJs]) {
-          L.marker([lat, lng], {interactive:false, opacity:0}).addTo(map)
+          L.circleMarker([lat, lng], {radius:0, opacity:0, fillOpacity:0}).addTo(map)
             .bindTooltip(name, {permanent:true, direction:'center', className:'bldg'});
         }
-        const pickup = L.marker([${pickup.first}, ${pickup.second}]).addTo(map).bindTooltip(${js(pickupTitle)}, {permanent:true, direction:'top'});
-        const dropoff = L.marker([${dropoff.first}, ${dropoff.second}]).addTo(map).bindTooltip(${js(dropoffTitle)}, {permanent:true, direction:'top'});
+        const pickup = pin(${pickup.first}, ${pickup.second}, '#e07a2f', ${js(pickupTitle)});
+        const dropoff = pin(${dropoff.first}, ${dropoff.second}, '#1f7a4d', ${js(dropoffTitle)});
         let runner = $runnerJs;
         const line = L.polyline([], {color:'#1f7a4d', weight:4, dashArray:'8 6'}).addTo(map);
         function leg() {
@@ -105,10 +138,12 @@ private fun mapPage(
           if (a && b) line.setLatLngs([a.getLatLng(), b.getLatLng()]);
         }
         function frame() {
+          map.invalidateSize();
           const points = [pickup, dropoff, runner].filter(Boolean).map(m => m.getLatLng());
           if (points.length) map.fitBounds(L.latLngBounds(points).pad(0.35));
           leg();
         }
+        window.fitMap = frame;
         window.moveRunner = function(lat, lng) {
           if (!runner) runner = L.circleMarker([lat, lng], {radius:10,color:'#fff',weight:3,fillColor:'#1f7a4d',fillOpacity:1}).addTo(map).bindTooltip(${js(runnerTitle)}, {permanent:true, direction:'top', offset:[0,-8], className:'runner'});
           else runner.setLatLng([lat, lng]);

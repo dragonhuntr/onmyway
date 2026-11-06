@@ -507,15 +507,14 @@ fun FindingRunnerScreen(model: AppModel, onBack: (() -> Unit)?) {
 
     Column(Modifier.fillMaxSize().background(OmwColors.Canvas)) {
         TopBar("Finding your runner", onBack = onBack)
+        DeliveryMap(
+            height = 360.dp,
+            pickup = model.activeOrder?.restaurant?.building?.point(),
+            pickupTitle = model.activeOrder?.restaurant?.name ?: "Pick up",
+            dropoff = model.activeOrder?.destination?.point() ?: model.destination?.point(),
+            dropoffTitle = building,
+        )
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            DeliveryMap(
-                height = 360.dp,
-                pickup = model.activeOrder?.restaurant?.building?.point(),
-                pickupTitle = model.activeOrder?.restaurant?.name ?: "Pick up",
-                dropoff = model.activeOrder?.destination?.point() ?: model.destination?.point(),
-                dropoffTitle = building,
-            )
-
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(20.dp)) {
                 StatusCapsule("Matching…") { Image(painterResource(R.drawable.loading_dots), null, Modifier.size(26.dp, 6.dp)) }
                 Text("Looking for a runner on their way to $building", style = OmwType.Title3.bold, color = OmwColors.Ink)
