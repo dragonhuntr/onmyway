@@ -22,16 +22,19 @@ import androidx.core.content.ContextCompat
 
 /** Sends the runner's location to the server while this is composed (a delivery is on screen). */
 @Composable
-fun ReportLocationWhileVisible(report: (latitude: Double, longitude: Double) -> Unit) {
+fun ReportLocationWhileVisible(
+    onAllowed: (Boolean) -> Unit = {},
+    report: (latitude: Double, longitude: Double) -> Unit,
+) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(context.hasLocationPermission()) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         granted = results.values.any { it }
+        onAllowed(granted)
     }
     LaunchedEffect(Unit) {
-        if (!granted) {
-            launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-        }
+        if (granted) onAllowed(true)
+        else launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
     }
 
     val latestReport by rememberUpdatedState(report)
@@ -41,9 +44,9 @@ fun ReportLocationWhileVisible(report: (latitude: Double, longitude: Double) -> 
 
         var lastSent = 0L
         val listener = LocationListener { location ->
-            // Every 15 seconds is enough for a walking pace.
+            // Every 5 seconds is enough to show a walker moving on the customer's map.
             val now = SystemClock.elapsedRealtime()
-            if (lastSent == 0L || now - lastSent > 15_000) {
+            if (lastSent == 0L || now - lastSent > 5_000) {
                 lastSent = now
                 latestReport(location.latitude, location.longitude)
             }

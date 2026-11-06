@@ -62,7 +62,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onmyway.app.R
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import com.onmyway.app.model.ApiException
 import com.onmyway.app.model.ChatTarget
@@ -82,16 +81,11 @@ import java.util.Locale
 import com.onmyway.app.model.AppModel
 import com.onmyway.app.model.AppTab
 import com.onmyway.app.model.Order
-import com.onmyway.app.ui.components.CampusMap
+import com.onmyway.app.ui.components.DeliveryMap
 import com.onmyway.app.ui.components.EmptyState
 import com.onmyway.app.ui.components.LargeTitle
-import com.onmyway.app.ui.components.MapItem
-import com.onmyway.app.ui.components.MapLabel
-import com.onmyway.app.ui.components.MapPin
-import com.onmyway.app.ui.components.MapRoute
-import com.onmyway.app.ui.components.PinKind
 import com.onmyway.app.ui.components.RefreshableColumn
-import com.onmyway.app.ui.components.RunnerDot
+import com.onmyway.app.ui.components.point
 import com.onmyway.app.ui.theme.ChipToggle
 import com.onmyway.app.ui.theme.CtaButton
 import com.onmyway.app.ui.theme.CtaKind
@@ -252,9 +246,7 @@ private fun PastOrderRow(model: AppModel, order: Order) {
 private fun OrderTrackingScreen(model: AppModel, order: Order, runner: Runner) {
     val eta = order.etaMinutes ?: order.walkMinutes
     val pickedUp = order.status == Order.Status.PickedUp
-    // Where the runner dot sits on the illustrated map: near pickup until picked up, then halfway.
-    val runnerX by animateFloatAsState(if (pickedUp) 204.9f else 70f, label = "runnerX")
-    val runnerY by animateFloatAsState(if (pickedUp) 111.6f else 200f, label = "runnerY")
+    LaunchedEffect(Unit) { model.loadBuildings() }
 
     Column(
         Modifier
@@ -263,12 +255,17 @@ private fun OrderTrackingScreen(model: AppModel, order: Order, runner: Runner) {
             .verticalScroll(rememberScrollState())
             .statusBarsPadding(),
     ) {
-        CampusMap(height = 310.dp, route = MapRoute.Tracking) {
-            MapItem(34f, 229.4f) { MapPin(PinKind.Pickup, order.restaurant.name) }
-            MapItem(321.5f, 49.6f) { MapPin(PinKind.Dropoff, order.destination.building) }
-            MapItem(runnerX, runnerY) { RunnerDot(contentDescription = "${runner.name}, $eta minutes away") }
-            MapItem(runnerX, runnerY - 35.6f) { MapLabel("${runner.firstName} · $eta min", filled = true) }
-        }
+        DeliveryMap(
+            height = 310.dp,
+            pickup = order.restaurant.building.point(),
+            pickupTitle = order.restaurant.name,
+            dropoff = order.destination.point(),
+            dropoffTitle = order.destination.building,
+            buildings = model.buildings,
+            runner = runner.location?.let { it.lat to it.lng },
+            runnerTitle = "${runner.firstName} · $eta min",
+            headingToPickup = !pickedUp,
+        )
 
         Column(
             verticalArrangement = Arrangement.spacedBy(14.dp),

@@ -20,11 +20,15 @@ struct SessionUser: Equatable {
 struct Place: Decodable, Hashable, Sendable {
     let id: String
     let name: String
+    let lat: Double?
+    let lng: Double?
 }
 
 struct Building: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
+    let lat: Double?
+    let lng: Double?
 }
 
 struct Restaurant: Decodable, Identifiable, Hashable, Sendable {
@@ -97,6 +101,8 @@ struct Destination: Decodable, Hashable, Sendable {
     var building: String
     var room: String
     var note: String
+    var lat: Double?
+    var lng: Double?
 
     var short: String {
         room.isEmpty ? building : "\(building), \(room.replacingOccurrences(of: "Room", with: "Rm"))"

@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -180,17 +180,18 @@ fun ChatScreen(model: AppModel, target: ChatTarget) {
 @Composable
 private fun Bubble(message: ChatMessage) {
     Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-        if (message.fromMe) Spacer(Modifier.weight(1f).width(48.dp))
+        if (message.fromMe) Spacer(Modifier.weight(1f))
         Column(
             horizontalAlignment = if (message.fromMe) Alignment.End else Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.weight(4f, fill = false),
+            modifier = Modifier.widthIn(max = 280.dp),
         ) {
             val shape = RoundedCornerShape(16.dp)
             Text(
                 message.body,
                 style = OmwType.Subheadline,
                 color = if (message.fromMe) Color.White else OmwColors.Ink,
+                textAlign = if (message.fromMe) TextAlign.End else TextAlign.Start,
                 modifier = Modifier
                     .background(if (message.fromMe) OmwColors.Brand else Color.White, shape)
                     .then(if (message.fromMe) Modifier else Modifier.border(1.dp, OmwColors.Hairline, shape))
@@ -198,7 +199,7 @@ private fun Bubble(message: ChatMessage) {
             )
             Text(message.createdAt.shortTime, style = OmwType.Caption2, color = OmwColors.InkSecondary)
         }
-        if (!message.fromMe) Spacer(Modifier.weight(1f).width(48.dp))
+        if (!message.fromMe) Spacer(Modifier.weight(1f))
     }
 }
 

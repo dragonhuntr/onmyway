@@ -147,12 +147,10 @@ struct PastOrderRow: View {
 struct OrderTrackingView: View {
     let order: Order
     let runner: Runner
+    @Environment(AppModel.self) private var model
     @State private var chatting = false
 
     private var eta: Int { order.etaMinutes ?? order.walkMinutes }
-    /// Where the runner dot sits on the illustrated map: near pickup until picked up, then halfway.
-    private var runnerPoint: (x: CGFloat, y: CGFloat) { order.status == .pickedUp ? (204.9, 111.6) : (70, 200) }
-
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -163,21 +161,22 @@ struct OrderTrackingView: View {
         .background(Color.canvas)
         .scrollBounceBehavior(.basedOnSize)
         .toolbarVisibility(.hidden, for: .navigationBar)
+        .task { await model.loadBuildings() }
         .sheet(isPresented: $chatting) { ChatView(orderID: order.id, title: runner.name) }
     }
 
     private var map: some View {
-        CampusMap(height: 310, route: .init(image: .routeTracking, size: CGSize(width: 282, height: 183.8))) { s in
-            MapItem(space: s, x: 34, y: 229.4) { MapPin(kind: .pickup, label: order.restaurant.name) }
-            MapItem(space: s, x: 321.5, y: 49.6) { MapPin(kind: .dropoff, label: order.destination.building) }
-            MapItem(space: s, x: runnerPoint.x, y: runnerPoint.y) {
-                RunnerDot().accessibilityHidden(false).accessibilityLabel("\(runner.name), \(eta) minutes away")
-            }
-            MapItem(space: s, x: runnerPoint.x, y: runnerPoint.y - 35.6) {
-                MapLabel(text: "\(runner.firstName) · \(eta) min", filled: true)
-            }
-        }
-        .animation(.easeInOut, value: order.status)
+        DeliveryMap(
+            height: 310,
+            pickup: order.restaurant.building.coordinate,
+            pickupTitle: order.restaurant.name,
+            dropoff: order.destination.coordinate,
+            dropoffTitle: order.destination.building,
+            buildings: model.buildings,
+            runner: runner.location?.coordinate,
+            runnerTitle: "\(runner.firstName) · \(eta) min",
+            headingToPickup: order.status != .pickedUp
+        )
     }
 
     private var sheet: some View {

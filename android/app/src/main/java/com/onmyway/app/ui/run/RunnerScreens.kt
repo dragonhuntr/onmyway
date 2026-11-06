@@ -1,8 +1,9 @@
 package com.onmyway.app.ui.run
 
+import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -78,16 +79,12 @@ import com.onmyway.app.model.Trip
 import com.onmyway.app.model.plain
 import com.onmyway.app.model.shortTime
 import com.onmyway.app.model.usd
-import com.onmyway.app.ui.components.CampusMap
+import com.onmyway.app.ui.components.DeliveryMap
 import com.onmyway.app.ui.components.EmptyState
-import com.onmyway.app.ui.components.MapItem
-import com.onmyway.app.ui.components.MapLabel
-import com.onmyway.app.ui.components.MapPin
-import com.onmyway.app.ui.components.MapRoute
 import com.onmyway.app.ui.components.PinKind
+import com.onmyway.app.ui.components.point
 import com.onmyway.app.ui.components.RefreshableColumn
 import com.onmyway.app.ui.components.ReportLocationWhileVisible
-import com.onmyway.app.ui.components.RunnerDot
 import com.onmyway.app.ui.components.TopBar
 import com.onmyway.app.ui.components.openUrl
 import com.onmyway.app.ui.shared.TripEditor
@@ -426,14 +423,19 @@ private fun DeliveryRequestScreen(
     val scope = rememberCoroutineScope()
     val customerFirstName = request.customer.name.substringBefore(" ")
 
+    LaunchedEffect(Unit) { model.loadBuildings() }
+
     Column(Modifier.fillMaxSize().background(OmwColors.Canvas)) {
         TopBar("Delivery request", onBack = onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            CampusMap(height = 190.dp, route = MapRoute.Request) {
-                MapItem(49f, 140.6f) { MapPin(PinKind.Pickup, "Pick up") }
-                MapItem(330f, 30.4f) { MapPin(PinKind.Dropoff, "Drop off") }
-                MapItem(150f, 49f) { MapLabel("Your route", filled = true) }
-            }
+            DeliveryMap(
+                height = 190.dp,
+                pickup = request.restaurant.building.point(),
+                pickupTitle = "Pick up",
+                dropoff = request.destination.point(),
+                dropoffTitle = "Drop off",
+                buildings = model.buildings,
+            )
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -592,10 +594,12 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
     val context = LocalContext.current
     val atPickup = order.status == Order.Status.Accepted
     val customerName = order.customer?.name ?: order.nameOnOrder
-    val runnerX by animateFloatAsState(if (atPickup) 102f else 240f, label = "runnerX")
-    val runnerY by animateFloatAsState(if (atPickup) 108f else 66f, label = "runnerY")
+    var here by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var locationAllowed by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) { model.loadBuildings() }
 
-    ReportLocationWhileVisible { latitude, longitude ->
+    ReportLocationWhileVisible(onAllowed = { locationAllowed = it }) { latitude, longitude ->
+        here = latitude to longitude
         scope.launch { model.reportLocation(latitude, longitude) }
     }
 
@@ -618,8 +622,9 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
 
     /** Walking directions in Google Maps to the next stop's building. */
     fun openDirections() {
-        val building = if (atPickup) order.restaurant.building.name else order.destination.building
-        val destination = Uri.encode("$building, Penn State Behrend, Erie, PA")
+        val point = if (atPickup) order.restaurant.building.point() else order.destination.point()
+        val destination = point?.let { "${it.first},${it.second}" }
+            ?: Uri.encode("${if (atPickup) order.restaurant.building.name else order.destination.building}, Penn State Behrend, Erie, PA")
         context.openUrl("https://www.google.com/maps/dir/?api=1&destination=$destination&travelmode=walking")
     }
 
@@ -646,10 +651,33 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
 
             // The sheet overlaps the map by its corner radius.
             Box {
-                CampusMap(height = 224.dp, route = MapRoute.Request) {
-                    MapItem(34f, 148f) { MapPin(PinKind.Pickup, order.restaurant.name) }
-                    MapItem(321.5f, 32f) { MapPin(PinKind.Dropoff, order.destination.building) }
-                    MapItem(runnerX, runnerY) { RunnerDot(contentDescription = "You") }
+                DeliveryMap(
+                    height = 224.dp,
+                    pickup = order.restaurant.building.point(),
+                    pickupTitle = order.restaurant.name,
+                    dropoff = order.destination.point(),
+                    dropoffTitle = order.destination.building,
+                    buildings = model.buildings,
+                    runner = here,
+                    runnerTitle = "You",
+                    headingToPickup = atPickup,
+                )
+                if (!locationAllowed) {
+                    Text(
+                        "Allow location so they can see you",
+                        style = OmwType.Caption.semibold,
+                        color = OmwColors.BrandDeep,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 36.dp)
+                            .background(Color.White, CircleShape)
+                            .clickable {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")),
+                                )
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
                 }
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp),

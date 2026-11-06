@@ -19,3 +19,5 @@ api/.wrangler/
 api/.cloudflare/
 api/.env
 api/.dev.vars
+# Local Cloudflare account cache (account id and email). Not the Worker.
+/.cloudflare/

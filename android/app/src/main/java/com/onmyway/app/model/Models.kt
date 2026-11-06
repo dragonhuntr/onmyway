@@ -30,10 +30,10 @@ data class SessionUser(
 
 /** A campus building, as a reference inside other responses. */
 @Serializable
-data class Place(val id: String, val name: String)
+data class Place(val id: String, val name: String, val lat: Double? = null, val lng: Double? = null)
 
 @Serializable
-data class Building(val id: String, val name: String)
+data class Building(val id: String, val name: String, val lat: Double? = null, val lng: Double? = null)
 
 @Serializable
 data class Restaurant(
@@ -104,6 +104,8 @@ data class Destination(
     val building: String,
     val room: String,
     val note: String,
+    val lat: Double? = null,
+    val lng: Double? = null,
 ) {
     val short: String get() = if (room.isEmpty()) building else "$building, ${room.replace("Room", "Rm")}"
     val full: String get() = if (room.isEmpty()) building else "$building · $room"

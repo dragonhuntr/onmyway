@@ -226,8 +226,15 @@ async function requestView(env: Env, order: OrderRow, known: Places, start: Poin
   const readyAt = order.ready_at ? Date.parse(order.ready_at) : Date.now();
   return {
     id: order.id,
-    restaurant: { id: restaurant.id, name: restaurant.name, building: { id: pickup.id, name: pickup.name } },
-    destination: { buildingId: dropoff.id, building: dropoff.name, room: order.dropoff_room, note: order.dropoff_note },
+    restaurant: { id: restaurant.id, name: restaurant.name, building: { id: pickup.id, name: pickup.name, lat: pickup.lat, lng: pickup.lng } },
+    destination: {
+      buildingId: dropoff.id,
+      building: dropoff.name,
+      room: order.dropoff_room,
+      note: order.dropoff_note,
+      lat: dropoff.lat,
+      lng: dropoff.lng,
+    },
     number: order.order_number,
     nameOnOrder: order.name_on_order,
     readyAt: order.ready_at,

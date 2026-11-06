@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 enum RunRoute: Hashable {
@@ -273,11 +274,15 @@ struct DeliveryRequestView: View {
 
     var body: some View {
         ScrollView {
-            CampusMap(height: 190, route: .init(image: .routeRequest, size: CGSize(width: 282, height: 114.2))) { s in
-                MapItem(space: s, x: 49, y: 140.6) { MapPin(kind: .pickup, label: "Pick up") }
-                MapItem(space: s, x: 330, y: 30.4) { MapPin(kind: .dropoff, label: "Drop off") }
-                MapItem(space: s, x: 150, y: 49) { MapLabel(text: "Your route", filled: true) }
-            }
+            DeliveryMap(
+                height: 190,
+                pickup: request.restaurant.building.coordinate,
+                pickupTitle: "Pick up",
+                dropoff: request.destination.coordinate,
+                dropoffTitle: "Drop off",
+                buildings: model.buildings,
+                headingToPickup: true
+            )
 
             VStack(spacing: 12) {
                 HStack(spacing: 5) {
@@ -340,6 +345,7 @@ struct DeliveryRequestView: View {
         .navigationTitle("Delivery request")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
+        .task { await model.loadBuildings() }
         .footer {
             if let errorMessage {
                 Text(errorMessage).font(.footnote.weight(.semibold)).foregroundStyle(Color.inkSecondary)
@@ -410,6 +416,8 @@ struct ActiveDeliveryView: View {
     @State private var chatting = false
     @State private var reporting = false
     @State private var location = LocationReporter()
+    @State private var here: CLLocationCoordinate2D?
+    @State private var locationAllowed = true
 
     init(order: Order, done: @escaping () -> Void) {
         _order = State(initialValue: order)
@@ -424,14 +432,29 @@ struct ActiveDeliveryView: View {
             stepProgress
             // The sheet overlaps the map by its corner radius.
             VStack(spacing: -24) {
-                CampusMap(height: 224, route: .init(image: .routeRequest, size: CGSize(width: 282, height: 120))) { s in
-                    MapItem(space: s, x: 34, y: 148) { MapPin(kind: .pickup, label: order.restaurant.name) }
-                    MapItem(space: s, x: 321.5, y: 32) { MapPin(kind: .dropoff, label: order.destination.building) }
-                    MapItem(space: s, x: atPickup ? 102 : 240, y: atPickup ? 108 : 66) {
-                        RunnerDot().accessibilityHidden(false).accessibilityLabel("You")
+                DeliveryMap(
+                    height: 224,
+                    pickup: order.restaurant.building.coordinate,
+                    pickupTitle: order.restaurant.name,
+                    dropoff: order.destination.coordinate,
+                    dropoffTitle: order.destination.building,
+                    buildings: model.buildings,
+                    runner: here,
+                    runnerTitle: "You",
+                    headingToPickup: atPickup
+                )
+                .overlay(alignment: .bottom) {
+                    if !locationAllowed {
+                        Button("Allow location so they can see you") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                        }
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white, in: .capsule)
+                        .padding(.bottom, 28)
                     }
                 }
-                .animation(.easeInOut, value: order.status)
 
                 VStack(alignment: .leading, spacing: 12) {
                     destinationHeader
@@ -459,8 +482,11 @@ struct ActiveDeliveryView: View {
                 Button("Hand back this order", role: .destructive) { Task { await release() } }
             }
         }
+        .task { await model.loadBuildings() }
         .onAppear {
+            location.onAccess = { locationAllowed = $0 }
             location.start { coordinate in
+                here = coordinate
                 Task { await model.reportLocation(latitude: coordinate.latitude, longitude: coordinate.longitude) }
             }
         }
