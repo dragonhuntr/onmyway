@@ -151,15 +151,34 @@ struct OrderTrackingView: View {
     @State private var chatting = false
 
     private var eta: Int { order.etaMinutes ?? order.walkMinutes }
+    private var stage: String { order.status == .pickedUp ? "On the way" : "Picking up" }
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
                 map
-                sheet
+                Text(stage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.brandDeep)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.white, in: .capsule)
+                    .padding(12)
+                if runner.location == nil {
+                    Text("Waiting for \(runner.firstName)’s location")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white, in: .capsule)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 28)
+                }
             }
+            ScrollView { sheet }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .background(.white)
         }
         .background(Color.canvas)
-        .scrollBounceBehavior(.basedOnSize)
         .toolbarVisibility(.hidden, for: .navigationBar)
         .task { await model.loadBuildings() }
         .sheet(isPresented: $chatting) { ChatView(orderID: order.id, title: runner.name) }
@@ -167,7 +186,7 @@ struct OrderTrackingView: View {
 
     private var map: some View {
         DeliveryMap(
-            height: 310,
+            height: 420,
             pickup: order.restaurant.building.coordinate,
             pickupTitle: order.restaurant.name,
             dropoff: order.destination.coordinate,
@@ -346,6 +365,19 @@ struct DeliveredView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
+                DeliveryMap(
+                    height: 280,
+                    pickup: order.restaurant.building.coordinate,
+                    pickupTitle: order.restaurant.name,
+                    dropoff: order.destination.coordinate,
+                    dropoffTitle: order.destination.building,
+                    buildings: model.buildings,
+                    runner: order.runner?.location?.coordinate,
+                    runnerTitle: runnerName,
+                    headingToPickup: false
+                )
+                .task { await model.loadBuildings() }
+
                 VStack(spacing: 10) {
                     Image(.checkLargeWhite).resizable().frame(width: 40, height: 40)
                         .frame(width: 64, height: 64)

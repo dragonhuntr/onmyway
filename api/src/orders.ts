@@ -109,12 +109,11 @@ export async function orderView(env: Env, order: OrderRow, viewer: User, known?:
             .bind(order.trip_id)
             .first<{ note: string; destination: string }>()
         : null;
-      const live =
-        person.runner_lat !== null &&
-        person.runner_lng !== null &&
-        person.runner_seen_at !== null &&
-        person.runner_seen_at > minutesFromNow(-liveLocationMinutes);
-      if (live && (order.status === "accepted" || order.status === "picked_up")) {
+      const hasPoint = person.runner_lat !== null && person.runner_lng !== null && person.runner_seen_at !== null;
+      const live = hasPoint && person.runner_seen_at > minutesFromNow(-liveLocationMinutes);
+      // Pickup and the walk to the customer use a fresh point. Delivered keeps the last point for the receipt map.
+      const tracking = order.status === "accepted" || order.status === "picked_up";
+      if ((live && tracking) || (hasPoint && order.status === "delivered")) {
         location = { lat: person.runner_lat!, lng: person.runner_lng!, updatedAt: person.runner_seen_at! };
       }
       runner = {

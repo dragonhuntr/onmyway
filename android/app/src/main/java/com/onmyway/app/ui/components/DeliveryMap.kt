@@ -100,8 +100,8 @@ private fun mapPage(
         let runner = $runnerJs;
         const line = L.polyline([], {color:'#1f7a4d', weight:4, dashArray:'8 6'}).addTo(map);
         function leg() {
-          const a = ${if (headingToPickup) "runner || pickup" else "runner || dropoff"};
-          const b = $focus;
+          const a = runner || pickup;
+          const b = runner ? $focus : dropoff;
           if (a && b) line.setLatLngs([a.getLatLng(), b.getLatLng()]);
         }
         function frame() {

@@ -78,12 +78,8 @@ import java.time.Instant
 import com.onmyway.app.model.AppModel
 import com.onmyway.app.model.Restaurant
 import com.onmyway.app.model.Tip
-import com.onmyway.app.ui.components.CampusMap
-import com.onmyway.app.ui.components.MapItem
-import com.onmyway.app.ui.components.MapPin
-import com.onmyway.app.ui.components.MapRoute
-import com.onmyway.app.ui.components.PinKind
-import com.onmyway.app.ui.components.RunnerDot
+import com.onmyway.app.ui.components.DeliveryMap
+import com.onmyway.app.ui.components.point
 import com.onmyway.app.ui.components.StatusCapsule
 import com.onmyway.app.ui.components.TopBar
 import com.onmyway.app.ui.theme.ChipToggle
@@ -512,13 +508,13 @@ fun FindingRunnerScreen(model: AppModel, onBack: (() -> Unit)?) {
     Column(Modifier.fillMaxSize().background(OmwColors.Canvas)) {
         TopBar("Finding your runner", onBack = onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            CampusMap(height = 360.dp, route = MapRoute.Finding) {
-                MapItem(34f, 266.4f) { MapPin(PinKind.Pickup, model.activeOrder?.restaurant?.name.orEmpty()) }
-                MapItem(321.5f, 57.6f) { MapPin(PinKind.Dropoff, building) }
-                MapItem(150f, 150f) { RunnerDot() }
-                MapItem(300f, 250f) { RunnerDot() }
-                MapItem(200f, 300f) { RunnerDot() }
-            }
+            DeliveryMap(
+                height = 360.dp,
+                pickup = model.activeOrder?.restaurant?.building?.point(),
+                pickupTitle = model.activeOrder?.restaurant?.name ?: "Pick up",
+                dropoff = model.activeOrder?.destination?.point() ?: model.destination?.point(),
+                dropoffTitle = building,
+            )
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(20.dp)) {
                 StatusCapsule("Matching…") { Image(painterResource(R.drawable.loading_dots), null, Modifier.size(26.dp, 6.dp)) }

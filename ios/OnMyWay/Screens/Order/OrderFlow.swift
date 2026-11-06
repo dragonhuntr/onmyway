@@ -358,13 +358,13 @@ struct FindingRunnerView: View {
 
     var body: some View {
         ScrollView {
-            CampusMap(height: 360, route: .init(image: .routeFinding, size: CGSize(width: 282, height: 212.8))) { s in
-                MapItem(space: s, x: 34, y: 266.4) { MapPin(kind: .pickup, label: model.activeOrder?.restaurant.name ?? "") }
-                MapItem(space: s, x: 321.5, y: 57.6) { MapPin(kind: .dropoff, label: building) }
-                MapItem(space: s, x: 150, y: 150) { RunnerDot() }
-                MapItem(space: s, x: 300, y: 250) { RunnerDot() }
-                MapItem(space: s, x: 200, y: 300) { RunnerDot() }
-            }
+            DeliveryMap(
+                height: 360,
+                pickup: model.activeOrder?.restaurant.building.coordinate,
+                pickupTitle: model.activeOrder?.restaurant.name ?? "Pick up",
+                dropoff: model.activeOrder?.destination.coordinate ?? model.destination?.coordinate,
+                dropoffTitle: building
+            )
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {

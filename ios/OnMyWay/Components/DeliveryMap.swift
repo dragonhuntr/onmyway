@@ -88,8 +88,9 @@ struct DeliveryMap: View {
         }
     }
 
-    private var legStart: CLLocationCoordinate2D? { headingToPickup ? runner ?? pickup : runner ?? dropoff }
-    private var legEnd: CLLocationCoordinate2D? { headingToPickup ? pickup : dropoff }
+    /// With a runner, the line is their live position to the next stop. Before anyone accepts, it joins pickup and drop-off.
+    private var legStart: CLLocationCoordinate2D? { runner ?? pickup }
+    private var legEnd: CLLocationCoordinate2D? { runner == nil ? dropoff : (headingToPickup ? pickup : dropoff) }
 
     /// Refit when the stop changes, or when the runner has moved about 30 meters.
     private var cameraKey: String {

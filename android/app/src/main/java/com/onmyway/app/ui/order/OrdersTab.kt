@@ -252,24 +252,49 @@ private fun OrderTrackingScreen(model: AppModel, order: Order, runner: Runner) {
         Modifier
             .fillMaxSize()
             .background(OmwColors.Canvas)
-            .verticalScroll(rememberScrollState())
             .statusBarsPadding(),
     ) {
-        DeliveryMap(
-            height = 310.dp,
-            pickup = order.restaurant.building.point(),
-            pickupTitle = order.restaurant.name,
-            dropoff = order.destination.point(),
-            dropoffTitle = order.destination.building,
-            buildings = model.buildings,
-            runner = runner.location?.let { it.lat to it.lng },
-            runnerTitle = "${runner.firstName} · $eta min",
-            headingToPickup = !pickedUp,
-        )
+        Box(Modifier.fillMaxWidth()) {
+            DeliveryMap(
+                height = 420.dp,
+                pickup = order.restaurant.building.point(),
+                pickupTitle = order.restaurant.name,
+                dropoff = order.destination.point(),
+                dropoffTitle = order.destination.building,
+                buildings = model.buildings,
+                runner = runner.location?.let { it.lat to it.lng },
+                runnerTitle = "${runner.firstName} · $eta min",
+                headingToPickup = !pickedUp,
+            )
+            Text(
+                if (pickedUp) "On the way" else "Picking up",
+                style = OmwType.Caption.semibold,
+                color = OmwColors.BrandDeep,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+                    .background(Color.White, CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+            if (runner.location == null) {
+                Text(
+                    "Waiting for ${runner.firstName}’s location",
+                    style = OmwType.Caption.semibold,
+                    color = OmwColors.Ink,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 28.dp)
+                        .background(Color.White, CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+        }
 
         Column(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
                 .shadow(8.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), ambientColor = Color(0x1F14211A), spotColor = Color(0x1F14211A))
                 .background(Color.White, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
@@ -458,6 +483,7 @@ fun DeliveredScreen(model: AppModel, order: Order) {
     val extraTips = listOf(100, 200, 300)
     val runnerName = order.runner?.firstName ?: "your runner"
     val cardShape = RoundedCornerShape(16.dp)
+    LaunchedEffect(Unit) { model.loadBuildings() }
 
     /** Sends the rating (and pays any extra tip), then closes. */
     suspend fun finish(orderAgain: Boolean) {
@@ -497,6 +523,17 @@ fun DeliveredScreen(model: AppModel, order: Order) {
                 .statusBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
         ) {
+            DeliveryMap(
+                height = 280.dp,
+                pickup = order.restaurant.building.point(),
+                pickupTitle = order.restaurant.name,
+                dropoff = order.destination.point(),
+                dropoffTitle = order.destination.building,
+                buildings = model.buildings,
+                runner = order.runner?.location?.let { it.lat to it.lng },
+                runnerTitle = runnerName,
+                headingToPickup = false,
+            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
