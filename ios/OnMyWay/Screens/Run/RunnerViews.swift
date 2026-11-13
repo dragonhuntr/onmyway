@@ -280,7 +280,6 @@ struct DeliveryRequestView: View {
                 pickupTitle: "Pick up",
                 dropoff: request.destination.coordinate,
                 dropoffTitle: "Drop off",
-                buildings: model.buildings,
                 headingToPickup: true
             )
 
@@ -438,7 +437,6 @@ struct ActiveDeliveryView: View {
                     pickupTitle: order.restaurant.name,
                     dropoff: order.destination.coordinate,
                     dropoffTitle: order.destination.building,
-                    buildings: model.buildings,
                     runner: here,
                     runnerTitle: "You",
                     headingToPickup: atPickup

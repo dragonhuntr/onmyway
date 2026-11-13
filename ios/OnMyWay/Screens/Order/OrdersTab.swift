@@ -237,7 +237,6 @@ struct OrderTrackingView: View {
             pickupTitle: order.restaurant.name,
             dropoff: order.destination.coordinate,
             dropoffTitle: order.destination.building,
-            buildings: model.buildings,
             runner: runner.location?.coordinate,
             runnerTitle: "\(runner.firstName) · \(eta) min",
             headingToPickup: order.status != .pickedUp
@@ -417,7 +416,6 @@ struct DeliveredView: View {
                     pickupTitle: order.restaurant.name,
                     dropoff: order.destination.coordinate,
                     dropoffTitle: order.destination.building,
-                    buildings: model.buildings,
                     runner: order.runner?.location?.coordinate,
                     runnerTitle: runnerName,
                     headingToPickup: false
