@@ -119,6 +119,8 @@ fun OrdersTab(model: AppModel) {
 private fun PastOrders(model: AppModel) {
     val scroll = rememberScrollState()
     val cursor = model.pastOrdersCursor
+    var showAllPastOrders by rememberSaveable { mutableStateOf(false) }
+
     LaunchedEffect(Unit) { model.loadPastOrders() }
     LaunchedEffect(cursor) {
         if (cursor == null) return@LaunchedEffect
@@ -126,6 +128,10 @@ private fun PastOrders(model: AppModel) {
         snapshotFlow { scroll.maxValue - scroll.value < 600 }.first { it }
         model.loadMorePastOrders()
     }
+
+    // Calculate total cost for completed orders
+    val deliveredOrders = model.pastOrders.filter { it.status == Order.Status.Delivered }
+    val totalSpentCents = deliveredOrders.sumOf { it.dueNowCents + it.extraTipCents }
 
     Column(Modifier.fillMaxSize().background(OmwColors.Canvas).statusBarsPadding()) {
         LargeTitle("Orders", Modifier.padding(start = 20.dp, top = 8.dp))
@@ -149,20 +155,87 @@ private fun PastOrders(model: AppModel) {
                 scrollState = scroll,
                 modifier = Modifier.weight(1f),
             ) {
+                // Total Cost Tracker Card
+                TotalCostTrackerCard(
+                    totalSpentCents = totalSpentCents,
+                    orderCount = deliveredOrders.size,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+
                 Text(
                     "Past orders",
                     style = OmwType.Headline,
                     color = OmwColors.Ink,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
                 )
-                model.pastOrders.forEach { order -> PastOrderRow(model, order) }
-                if (cursor != null) {
+
+                // Limit past orders to 5 unless expanded
+                val visibleOrders = if (showAllPastOrders) model.pastOrders else model.pastOrders.take(5)
+                visibleOrders.forEach { order -> PastOrderRow(model, order) }
+
+                // Show More / Show Less Expandable Button
+                if (model.pastOrders.size > 5) {
+                    val remainingCount = model.pastOrders.size - 5
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CtaButton(
+                            text = if (showAllPastOrders) "Show less" else "Show more ($remainingCount more)",
+                            kind = CtaKind.Outline,
+                            onClick = { showAllPastOrders = !showAllPastOrders },
+                        )
+                    }
+                }
+
+                if (cursor != null && showAllPastOrders) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = OmwColors.Brand, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                     }
                 }
                 Spacer(Modifier.size(8.dp))
             }
+        }
+    }
+}
+
+/** Total Cost Tracker widget displaying total spent on delivered orders, matching the app's card design system. */
+@Composable
+private fun TotalCostTrackerCard(
+    totalSpentCents: Int,
+    orderCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.card(padding = 16.dp, radius = 16.dp),
+    ) {
+        IconBadge(
+            R.drawable.dollar,
+            iconSize = 22.dp,
+            badgeSize = 44.dp,
+            background = OmwColors.AmberSoft,
+            radius = 12.dp,
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+            Text(
+                "TOTAL SPENT",
+                style = OmwType.Caption.semibold.copy(letterSpacing = 0.72.sp),
+                color = OmwColors.InkSecondary,
+            )
+            Text(
+                totalSpentCents.usd,
+                style = OmwType.Title2.bold,
+                color = OmwColors.Ink,
+            )
+            Text(
+                if (orderCount == 1) "Across 1 completed delivery" else "Across $orderCount completed deliveries",
+                style = OmwType.Caption,
+                color = OmwColors.InkSecondary,
+            )
         }
     }
 }

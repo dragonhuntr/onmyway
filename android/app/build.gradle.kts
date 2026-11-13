@@ -64,4 +64,5 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
 }
