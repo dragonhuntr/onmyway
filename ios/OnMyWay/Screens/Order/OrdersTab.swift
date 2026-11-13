@@ -22,9 +22,16 @@ struct OrdersTab: View {
     }
 }
 
-/// Orders with nothing on the way: finished orders, newest first, paging in as you scroll.
+/// Orders with nothing on the way: finished orders, newest first, showing 5 recent orders with total spent and a show more button.
 struct PastOrdersView: View {
     @Environment(AppModel.self) private var model
+    @State private var showingAll = false
+
+    private var totalSpentCents: Int {
+        model.pastOrders
+            .filter { $0.status == .delivered }
+            .reduce(0) { $0 + $1.dueNowCents + $1.extraTipCents }
+    }
 
     var body: some View {
         Group {
@@ -39,15 +46,54 @@ struct PastOrdersView: View {
                 }
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        Text("Past orders").font(.headline).foregroundStyle(Color.ink)
-                        ForEach(model.pastOrders) { order in
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Eyebrow("TOTAL SPENT ON ORDERS")
+                            Text(totalSpentCents.usd)
+                                .font(.largeTitle.bold())
+                                .foregroundStyle(Color.ink)
+                        }
+                        .card(padding: 18, radius: 18)
+
+                        Text("Past orders")
+                            .font(.headline)
+                            .foregroundStyle(Color.ink)
+                            .padding(.top, 4)
+
+                        let ordersToShow = showingAll ? model.pastOrders : Array(model.pastOrders.prefix(5))
+                        ForEach(ordersToShow) { order in
                             PastOrderRow(order: order)
                         }
-                        if let cursor = model.pastOrdersCursor {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .task(id: cursor) { await model.loadMorePastOrders() }
+
+                        if !showingAll && model.pastOrders.count > 5 {
+                            Button("Show more") {
+                                showingAll = true
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.brand)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(.white, in: .rect(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.hairline))
+                            .buttonStyle(.plain)
+                        } else if let cursor = model.pastOrdersCursor {
+                            if showingAll {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                                    .task(id: cursor) { await model.loadMorePastOrders() }
+                            } else {
+                                Button("Show more") {
+                                    Task {
+                                        await model.loadMorePastOrders()
+                                        showingAll = true
+                                    }
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.brand)
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                                .background(.white, in: .rect(cornerRadius: 14))
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.hairline))
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                     .padding(20)
