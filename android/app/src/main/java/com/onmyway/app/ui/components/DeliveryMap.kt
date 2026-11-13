@@ -28,9 +28,14 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -45,16 +50,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.tan
 
 /**
  * Street map of a delivery. Pickup, drop-off, and the runner are placed from real coordinates.
+ * A walking route follows campus paths and shortens as the runner moves toward the next stop.
  * Tiles come straight from OpenStreetMap, drawn by the app, so the map does not depend on a web view.
  */
 @Composable
@@ -64,7 +72,6 @@ fun DeliveryMap(
     pickupTitle: String,
     dropoff: Pair<Double, Double>?,
     dropoffTitle: String,
-    buildings: List<Building> = emptyList(),
     runner: Pair<Double, Double>? = null,
     runnerTitle: String = "Runner",
     headingToPickup: Boolean = true,
@@ -87,8 +94,24 @@ fun DeliveryMap(
     ) {
         val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val heightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
-        val spots = listOfNotNull(pickup, dropoff, runner)
-        val frame = remember(spots, widthPx, heightPx) { mapFrame(spots, widthPx, heightPx) }
+        val from = runner ?: pickup
+        val to = if (runner == null) dropoff else if (headingToPickup) pickup else dropoff
+        var fullRoute by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
+        val requestKey = routeRequestKey(fullRoute, from, to)
+        LaunchedEffect(requestKey) {
+            if (!needsRoute(fullRoute, from, to)) return@LaunchedEffect
+            val fetched = walkingRoute(from, to)
+            if (!fetched.isNullOrEmpty()) fullRoute = fetched
+        }
+        val line = remainingRoute(fullRoute, from, to)
+        val routeFits = fullRoute.size >= 2 && meters(fullRoute.last(), to) <= 40
+        val framePoints = buildList {
+            if (routeFits) addAll(fullRoute)
+            add(pickup)
+            add(dropoff)
+            if (runner != null) add(runner)
+        }
+        val frame = remember(framePoints, widthPx, heightPx) { mapFrame(framePoints, widthPx, heightPx) }
         var tiles by remember { mutableStateOf<Map<TileKey, ImageBitmap>>(emptyMap()) }
         LaunchedEffect(frame.keys) {
             tiles = frame.tiles.map { tile ->
@@ -99,23 +122,20 @@ fun DeliveryMap(
             frame.tiles.forEach { tile ->
                 tiles[tile.key]?.let { drawImage(it, topLeft = Offset(tile.left, tile.top)) }
             }
-            val from = frame.project(runner ?: pickup)
-            val to = frame.project(if (runner == null) dropoff else if (headingToPickup) pickup else dropoff)
-            drawLine(
-                color = OmwColors.Brand,
-                start = from,
-                end = to,
-                strokeWidth = 8f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 14f)),
-            )
+            val projected = line.map { frame.project(it) }
+            if (projected.size >= 2) {
+                val path = Path()
+                path.moveTo(projected.first().x, projected.first().y)
+                projected.drop(1).forEach { path.lineTo(it.x, it.y) }
+                drawPath(
+                    path,
+                    color = OmwColors.Brand,
+                    style = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                )
+            }
         }
-        buildings.forEach { building ->
-            val point = building.point() ?: return@forEach
-            if (sameSpot(point, pickup) || sameSpot(point, dropoff)) return@forEach
-            MapLabel(building.name, frame.project(point), filled = false)
-        }
-        MapLabel(pickupTitle, frame.project(pickup), filled = true, dot = Color(0xFFE07A2F))
-        MapLabel(dropoffTitle, frame.project(dropoff), filled = true, dot = OmwColors.Brand)
+        MapPin(frame.project(pickup), Color(0xFFE07A2F), pickupTitle)
+        MapPin(frame.project(dropoff), OmwColors.Brand, dropoffTitle)
         if (runner != null) MapLabel(runnerTitle, frame.project(runner), filled = true, dot = OmwColors.BrandDeep)
         Text(
             "© OpenStreetMap",
@@ -126,8 +146,79 @@ fun DeliveryMap(
     }
 }
 
-private fun sameSpot(a: Pair<Double, Double>, b: Pair<Double, Double>) =
-    kotlin.math.abs(a.first - b.first) < 0.0002 && kotlin.math.abs(a.second - b.second) < 0.0002
+/** A new route when the next stop changes, or when the runner has left the path by about 45 meters. */
+private fun needsRoute(route: List<Pair<Double, Double>>, from: Pair<Double, Double>, to: Pair<Double, Double>): Boolean {
+    if (meters(from, to) < 25) return false
+    if (route.size < 2) return true
+    if (meters(route.last(), to) > 40) return true
+    return route.minOf { meters(from, it) } > 45
+}
+
+/** Stable while the runner stays on the path, so a location update trims the line without another request. */
+private fun routeRequestKey(route: List<Pair<Double, Double>>, from: Pair<Double, Double>, to: Pair<Double, Double>): String {
+    val end = "${(to.first * 2_000).toInt()}:${(to.second * 2_000).toInt()}"
+    if (!needsRoute(route, from, to)) return "$end|on"
+    val start = "${(from.first * 2_000).toInt()}:${(from.second * 2_000).toInt()}"
+    return "$end|off|$start"
+}
+
+/** Walking path still ahead. It begins at the live position, so it shortens as the runner gets closer. */
+private fun remainingRoute(
+    route: List<Pair<Double, Double>>,
+    from: Pair<Double, Double>,
+    to: Pair<Double, Double>,
+): List<Pair<Double, Double>> {
+    if (route.size < 2 || meters(route.last(), to) > 40) return listOf(from, to)
+    val index = route.indices.minBy { meters(from, route[it]) }
+    return listOf(from) + route.drop(index)
+}
+
+private fun meters(a: Pair<Double, Double>, b: Pair<Double, Double>): Double {
+    val lat = (a.first - b.first) * 111_320.0
+    val lng = (a.second - b.second) * 111_320.0 * cos(Math.toRadians((a.first + b.first) / 2.0))
+    return hypot(lat, lng)
+}
+
+/** Walking directions along campus paths. Null when the request fails, so the map keeps a straight line. */
+private suspend fun walkingRoute(from: Pair<Double, Double>, to: Pair<Double, Double>): List<Pair<Double, Double>>? =
+    withContext(Dispatchers.IO) {
+        try {
+            val connection = URL(
+                "https://router.project-osrm.org/route/v1/foot/${from.second},${from.first};${to.second},${to.first}?overview=full&geometries=geojson",
+            ).openConnection() as HttpURLConnection
+            connection.setRequestProperty("User-Agent", "OnMyWay/1.0 (campus delivery)")
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
+            if (connection.responseCode != 200) return@withContext null
+            val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            if (json.optString("code") != "Ok") return@withContext null
+            val coordinates = json.getJSONArray("routes").getJSONObject(0).getJSONObject("geometry").getJSONArray("coordinates")
+            if (coordinates.length() < 2) return@withContext null
+            List(coordinates.length()) { index ->
+                val pair = coordinates.getJSONArray(index)
+                pair.getDouble(1) to pair.getDouble(0)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+/** Colored stop pin. The street map already names the building, so the pin has no second label. */
+@Composable
+private fun MapPin(at: Offset, dot: Color, label: String) {
+    Box(
+        Modifier
+            .semantics { contentDescription = label }
+            .offset { androidx.compose.ui.unit.IntOffset(at.x.toInt(), at.y.toInt()) }
+            .layout { measurable, _ ->
+                val placeable = measurable.measure(Constraints())
+                layout(0, 0) { placeable.place(-placeable.width / 2, -placeable.height / 2) }
+            }
+            .size(14.dp)
+            .background(dot, CircleShape)
+            .border(2.dp, Color.White, CircleShape),
+    )
+}
 
 /** Label whose bottom center sits on the map point. */
 @Composable

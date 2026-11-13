@@ -434,7 +434,6 @@ private fun DeliveryRequestScreen(
                 pickupTitle = "Pick up",
                 dropoff = request.destination.point(),
                 dropoffTitle = "Drop off",
-                buildings = model.buildings,
             )
 
             Column(
@@ -657,7 +656,6 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
                     pickupTitle = order.restaurant.name,
                     dropoff = order.destination.point(),
                     dropoffTitle = order.destination.building,
-                    buildings = model.buildings,
                     runner = here,
                     runnerTitle = "You",
                     headingToPickup = atPickup,
