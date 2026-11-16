@@ -48,6 +48,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -138,13 +139,20 @@ private fun Header(model: AppModel, onChooseDestination: () -> Unit) {
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier
+                .weight(1f, fill = false)
                 .clickable(role = Role.Button, onClickLabel = "Change delivery location", onClick = onChooseDestination)
                 .semantics(mergeDescendants = true) { contentDescription = "Deliver to ${destination ?: "no building chosen"}" },
         ) {
             Text("Deliver to", style = OmwType.Caption.medium, color = OmwColors.InkSecondary)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(R.drawable.pin_location, 18.dp)
-                Text(destination ?: "Choose a building", style = OmwType.Callout.semibold, color = OmwColors.Ink)
+                Text(
+                    destination ?: "Pick a building",
+                    style = OmwType.Callout.semibold,
+                    color = OmwColors.Ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Icon(R.drawable.chevron_right, 16.dp)
             }
         }
@@ -318,10 +326,28 @@ private fun RestaurantCard(restaurant: Restaurant, onClick: () -> Unit) {
     ) {
         FoodTile(restaurant, 148.dp, 104.dp)
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(restaurant.name, style = OmwType.Subheadline.semibold, color = OmwColors.Ink)
-            Text("$1 delivery · ${restaurant.eta}", style = OmwType.Caption, color = OmwColors.InkSecondary)
+            Text(
+                restaurant.name,
+                style = OmwType.Footnote.bold,
+                color = OmwColors.Ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "$1 delivery · ${restaurant.eta}",
+                style = OmwType.Caption,
+                color = OmwColors.InkSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             restaurant.building?.let {
-                Text(it.name, style = OmwType.Caption.medium, color = OmwColors.Ink)
+                Text(
+                    it.name,
+                    style = OmwType.Caption.medium,
+                    color = OmwColors.Ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

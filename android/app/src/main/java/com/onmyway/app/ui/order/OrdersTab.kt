@@ -96,6 +96,8 @@ import com.onmyway.app.ui.theme.LinkButton
 import com.onmyway.app.ui.theme.card
 import com.onmyway.app.ui.theme.OmwColors
 import com.onmyway.app.ui.theme.OmwType
+import com.onmyway.app.ui.theme.OnMyWayTheme
+import androidx.compose.ui.tooling.preview.Preview
 import com.onmyway.app.ui.theme.bold
 import com.onmyway.app.ui.theme.medium
 import com.onmyway.app.ui.theme.semibold
@@ -236,6 +238,86 @@ private fun TotalCostTrackerCard(
                 style = OmwType.Caption,
                 color = OmwColors.InkSecondary,
             )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun TotalCostTrackerCardPreview() {
+    OnMyWayTheme {
+        Box(
+            Modifier
+                .background(OmwColors.Canvas)
+                .padding(16.dp),
+        ) {
+            TotalCostTrackerCard(
+                totalSpentCents = 1850,
+                orderCount = 5,
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true, heightDp = 650)
+@Composable
+fun PastOrdersPreview() {
+    OnMyWayTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(OmwColors.Canvas)
+                .padding(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            LargeTitle("Orders", Modifier.padding(start = 20.dp))
+
+            TotalCostTrackerCard(
+                totalSpentCents = 1850,
+                orderCount = 5,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            )
+
+            Text(
+                "Past orders",
+                style = OmwType.Headline,
+                color = OmwColors.Ink,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
+            )
+
+            repeat(2) { index ->
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp).card(padding = 14.dp),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconBadge(R.drawable.building, iconSize = 22.dp, badgeSize = 52.dp, background = OmwColors.BrandSoft, radius = 12.dp)
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
+                            Text(if (index == 0) "Bruno's Cafe" else "Dobbins Dining", style = OmwType.Subheadline.semibold, color = OmwColors.Ink)
+                            Text("To Senat Hall, Rm 201", style = OmwType.Caption, color = OmwColors.InkSecondary)
+                            Text("Oct 26, 9:50 PM · Evan", style = OmwType.Caption, color = OmwColors.InkSecondary)
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(if (index == 0) "$3.50" else "$4.00", style = OmwType.Subheadline.bold, color = OmwColors.Ink)
+                            Text("Delivered", style = OmwType.Caption2.medium, color = OmwColors.BrandDeep, modifier = Modifier.background(OmwColors.BrandSoft, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CtaButton(
+                    text = "Show more (3 more)",
+                    kind = CtaKind.Outline,
+                    onClick = {},
+                )
+            }
         }
     }
 }

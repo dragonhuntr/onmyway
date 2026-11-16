@@ -114,7 +114,12 @@ data class Destination(
 enum class Tip(val cents: Int) {
     None(0), Half(50), One(100), Two(200);
 
-    val label: String get() = if (this == None) "None" else cents.usd
+    val label: String get() = when (this) {
+        None -> "None"
+        Half -> "$0.50"
+        One -> "$1"
+        Two -> "$2"
+    }
 }
 
 /** A student's order: food paid on Transact, delivery handed to a runner. */

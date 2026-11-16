@@ -400,10 +400,12 @@ private fun OrderNumberCard(
 @Composable
 private fun InfoField(label: String, modifier: Modifier, value: @Composable () -> Unit) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.Center,
         modifier = modifier
+            .fillMaxWidth()
+            .height(60.dp)
             .background(OmwColors.Canvas, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
             .semantics(mergeDescendants = true) {},
     ) {
         Text(label, style = OmwType.Caption.medium, color = OmwColors.InkSecondary)
@@ -515,9 +517,9 @@ fun FindingRunnerScreen(model: AppModel, onBack: (() -> Unit)?) {
             dropoffTitle = building,
         )
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(20.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(20.dp)) {
                 StatusCapsule("Matching…") { Image(painterResource(R.drawable.loading_dots), null, Modifier.size(26.dp, 6.dp)) }
-                Text("Looking for a runner on their way to $building", style = OmwType.Title3.bold, color = OmwColors.Ink)
+                Text("Finding runner · $building", style = OmwType.Headline, color = OmwColors.Ink)
                 LinearProgressIndicator(
                     progress = { progress.value },
                     color = OmwColors.Brand,

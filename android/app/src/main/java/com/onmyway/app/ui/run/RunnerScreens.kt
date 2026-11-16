@@ -248,7 +248,7 @@ private fun TripEyebrow(modifier: Modifier = Modifier) {
 @Composable
 private fun NoTrip(onAdd: () -> Unit) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
             .background(OmwColors.Brand, RoundedCornerShape(18.dp))
@@ -259,13 +259,13 @@ private fun NoTrip(onAdd: () -> Unit) {
         Text("We’ll show orders that fit your route, sorted by detour.", style = OmwType.Footnote, color = OmwColors.OnBrand)
         Text(
             "+ Add a trip",
-            style = OmwType.Footnote.semibold,
-            color = Color.White,
+            style = OmwType.Subheadline.bold,
+            color = OmwColors.BrandDeep,
             modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(OmwColors.BrandMid)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
                 .clickable(role = Role.Button, onClick = onAdd)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         )
     }
 }
@@ -321,11 +321,11 @@ private fun NextTrip(trip: Trip, onEdit: () -> Unit, onAdd: () -> Unit) {
             }
             Text(
                 "+ Add another trip",
-                style = OmwType.Footnote.semibold,
-                color = Color.White,
+                style = OmwType.Footnote.bold,
+                color = OmwColors.BrandDeep,
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, OmwColors.BrandOutline, RoundedCornerShape(10.dp))
+                    .background(Color.White)
                     .clickable(role = Role.Button, onClick = onAdd)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )

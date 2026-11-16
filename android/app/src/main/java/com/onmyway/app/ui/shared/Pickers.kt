@@ -90,7 +90,14 @@ fun DestinationPicker(model: AppModel, onDismiss: () -> Unit) {
     ) {
         BuildingField("Building", model.buildings, buildingId) { buildingId = it }
         FormTextField("Room", room, placeholder = "Room 174") { room = it }
-        FormTextField("Note for your runner", note, placeholder = "Text me when you arrive.", singleLine = false) { note = it }
+        FormTextField(
+            "Note for your runner",
+            note,
+            placeholder = "Text me when you arrive.",
+            singleLine = false,
+            characterLimit = 150,
+            onChange = { note = it },
+        )
         errorMessage?.let { Text(it, style = OmwType.Footnote, color = OmwColors.InkSecondary) }
     }
 }
@@ -198,18 +205,35 @@ private fun FormTextField(
     value: String,
     placeholder: String,
     singleLine: Boolean = true,
+    maxLines: Int = if (singleLine) 1 else 5,
+    characterLimit: Int? = null,
     onChange: (String) -> Unit,
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label) },
-        placeholder = { Text(placeholder, color = OmwColors.InkSecondary) },
-        singleLine = singleLine,
-        minLines = if (singleLine) 1 else 2,
-        colors = fieldColors(),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { newValue ->
+                if (characterLimit == null || newValue.length <= characterLimit) {
+                    onChange(newValue)
+                }
+            },
+            label = { Text(label) },
+            placeholder = { Text(placeholder, color = OmwColors.InkSecondary) },
+            singleLine = singleLine,
+            minLines = if (singleLine) 1 else 3,
+            maxLines = maxLines,
+            colors = fieldColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (characterLimit != null) {
+            Text(
+                "${value.length}/$characterLimit",
+                style = OmwType.Caption,
+                color = if (value.length == characterLimit) OmwColors.AmberInk else OmwColors.InkSecondary,
+                modifier = Modifier.align(Alignment.End).padding(end = 4.dp),
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

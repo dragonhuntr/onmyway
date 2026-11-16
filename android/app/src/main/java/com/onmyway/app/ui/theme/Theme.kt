@@ -113,7 +113,13 @@ fun OnMyWayTheme(content: @Composable () -> Unit) {
 
 private val usdFormat: NumberFormat = NumberFormat.getCurrencyInstance(Locale.US)
 
-fun formatUsd(value: Double): String = usdFormat.format(value)
+fun formatUsd(value: Double): String {
+    return if (value % 1.0 == 0.0) {
+        "$${value.toInt()}"
+    } else {
+        usdFormat.format(value)
+    }
+}
 
 val Double.usd: String get() = formatUsd(this)
 
