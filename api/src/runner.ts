@@ -263,11 +263,12 @@ export async function acceptOrder(c: Context): Promise<Response> {
   // The busy check is repeated inside the UPDATE so two quick taps on different requests can't both
   // land: each statement runs on its own, so the second sees the first's accepted order.
   const result = await c.env.DB.prepare(
-    `UPDATE orders SET status = 'accepted', runner_id = ?2, trip_id = ?3, accepted_at = ?4
+    `UPDATE orders SET status = 'accepted', runner_id = ?2, trip_id = ?3, accepted_at = ?4,
+       handoff_code = ?5, handoff_attempts = 0, handoff_locked_until = NULL
      WHERE id = ?1 AND status = 'matching' AND customer_id != ?2
        AND NOT EXISTS (SELECT 1 FROM orders WHERE runner_id = ?2 AND status IN ('accepted', 'picked_up'))`,
   )
-    .bind(c.params.id, user.id, tripID, now())
+    .bind(c.params.id, user.id, tripID, now(), handoffCode())
     .run();
   if (!result.meta.changes) {
     if (await activeDelivery(c.env, user.id)) {
@@ -295,12 +296,60 @@ export async function confirmPickup(c: Context): Promise<Response> {
   return step(c, "accepted", "picked_up", "picked_up_at");
 }
 
-/** POST /orders/:id/deliver — captures the payment and pays the runner. */
+/** Wrong handoff codes allowed before entry locks, and for how long. */
+const handoffTries = 5;
+const handoffLockMinutes = 5;
+
+/** A uniformly random 4-digit code. */
+function handoffCode(): string {
+  const value = new Uint32Array(1);
+  do crypto.getRandomValues(value);
+  while (value[0] >= 4_294_960_000);
+  return String(value[0] % 10_000).padStart(4, "0");
+}
+
+/**
+ * POST /orders/:id/deliver `{ code }` — checks the customer's handoff code, then captures the payment
+ * and pays the runner.
+ */
 export async function confirmDropoff(c: Context): Promise<Response> {
+  const user = await requireUser(c);
+  const order = await participantOrder(c.env, c.params.id, user);
+  if (order.runner_id !== user.id) throw new HttpError(403, "This isn't your delivery.");
+  if (order.status === "picked_up" && order.handoff_code !== null) {
+    await checkHandoffCode(c, order, text((await readJSON(c.request)).code, 10));
+  }
   const response = await step(c, "picked_up", "delivered", "delivered_at");
-  const order = (await orderByID(c.env, c.params.id))!;
-  c.ctx.waitUntil(settleDelivery(c.env, order).catch((error) => console.error("Settle failed", order.id, error)));
+  const delivered = (await orderByID(c.env, c.params.id))!;
+  c.ctx.waitUntil(settleDelivery(c.env, delivered).catch((error) => console.error("Settle failed", delivered.id, error)));
   return response;
+}
+
+async function checkHandoffCode(c: Context, order: OrderRow, code: string): Promise<void> {
+  if (order.handoff_locked_until && order.handoff_locked_until > now()) {
+    throw new HttpError(429, "Too many wrong codes. Message the customer, then try again in a few minutes.", "handoff_locked");
+  }
+  if (!/^\d{4}$/.test(code)) {
+    throw new HttpError(400, "Ask the customer for the 4-digit code in their app.", "handoff_code_required");
+  }
+  if (code === order.handoff_code) return;
+  const attempts = order.handoff_attempts + 1;
+  const locked = attempts >= handoffTries;
+  await c.env.DB.prepare("UPDATE orders SET handoff_attempts = ?2, handoff_locked_until = ?3 WHERE id = ?1")
+    .bind(order.id, locked ? 0 : attempts, locked ? minutesFromNow(handoffLockMinutes) : order.handoff_locked_until)
+    .run();
+  if (locked) {
+    c.ctx.waitUntil(
+      notify(c.env, order.customer_id, {
+        title: "Is your runner there?",
+        body: "They entered the wrong handoff code a few times. Check the code in the Orders tab.",
+        kind: "order",
+        orderId: order.id,
+      }),
+    );
+    throw new HttpError(429, "Too many wrong codes. Message the customer, then try again in a few minutes.", "handoff_locked");
+  }
+  throw new HttpError(400, "That code doesn't match. Ask the customer to check it in their app.", "handoff_code_wrong");
 }
 
 /** POST /orders/:id/release — runner gives an accepted order back before pickup. */

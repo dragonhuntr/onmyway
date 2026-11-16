@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon as MaterialIcon
@@ -54,9 +57,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -65,6 +70,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,11 +89,11 @@ import com.onmyway.app.model.usd
 import com.onmyway.app.ui.components.DeliveryMap
 import com.onmyway.app.ui.components.EmptyState
 import com.onmyway.app.ui.components.PinKind
-import com.onmyway.app.ui.components.point
 import com.onmyway.app.ui.components.RefreshableColumn
 import com.onmyway.app.ui.components.ReportLocationWhileVisible
 import com.onmyway.app.ui.components.TopBar
 import com.onmyway.app.ui.components.openUrl
+import com.onmyway.app.ui.components.point
 import com.onmyway.app.ui.shared.TripEditor
 import com.onmyway.app.ui.theme.ChipToggle
 import com.onmyway.app.ui.theme.CompactButton
@@ -592,6 +599,8 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val atPickup = order.status == Order.Status.Accepted
+    val needsCode = !atPickup && order.needsHandoffCode
+    var handoffCode by remember { mutableStateOf("") }
     val customerName = order.customer?.name ?: order.nameOnOrder
     var here by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var locationAllowed by remember { mutableStateOf(true) }
@@ -609,7 +618,7 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
             if (atPickup) {
                 order = model.confirmPickup(order)
             } else {
-                model.confirmDropoff(order)
+                model.confirmDropoff(order, handoffCode)
                 onDone()
             }
         } catch (e: ApiException) {
@@ -713,6 +722,7 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
                     }
 
                     if (atPickup) OrderNumberCard(order)
+                    if (needsCode) HandoffCodeCard(customerName, handoffCode) { handoffCode = it }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Avatar("Photo of $customerName")
@@ -735,7 +745,7 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
         }
         Footer {
             errorMessage?.let { Text(it, style = OmwType.Footnote.semibold, color = OmwColors.InkSecondary) }
-            CtaButton(if (atPickup) "Confirm pickup" else "Confirm drop-off", enabled = !isSaving) { advance() }
+            CtaButton(if (atPickup) "Confirm pickup" else "Confirm drop-off", enabled = !isSaving && (!needsCode || handoffCode.length == 4)) { advance() }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
@@ -799,6 +809,52 @@ internal fun SheetAction(text: String, color: Color, onClick: () -> Unit) {
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 14.dp),
     )
+}
+
+/** Drop-off step: the customer reads their 4-digit code from the Orders tab and the runner types it here. */
+@Composable
+private fun HandoffCodeCard(customerName: String, code: String, onChange: (String) -> Unit) {
+    val focus = LocalFocusManager.current
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(OmwColors.BrandSoft, RoundedCornerShape(16.dp))
+            .padding(vertical = 12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            MaterialIcon(Icons.Outlined.Key, contentDescription = null, tint = OmwColors.BrandDeep, modifier = Modifier.size(14.dp))
+            Text(
+                "ASK ${customerName.uppercase()} FOR THEIR CODE",
+                style = OmwType.Caption.semibold.copy(letterSpacing = 0.72.sp),
+                color = OmwColors.BrandDeep,
+            )
+        }
+        val style = OmwType.LargeTitle.bold.copy(color = OmwColors.Ink, textAlign = TextAlign.Center, letterSpacing = 8.sp)
+        BasicTextField(
+            value = code,
+            onValueChange = { value ->
+                val digits = value.filter(Char::isDigit).take(4)
+                onChange(digits)
+                if (digits.length == 4) focus.clearFocus()
+            },
+            singleLine = true,
+            textStyle = style,
+            cursorBrush = SolidColor(OmwColors.Brand),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = "Handoff code" },
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                    if (code.isEmpty()) Text("0000", style = style, color = OmwColors.InkSecondary.copy(alpha = 0.5f))
+                    inner()
+                }
+            },
+        )
+        Text("It’s on their Orders tab. You’re paid once it matches.", style = OmwType.Footnote, color = OmwColors.InkSecondary)
+    }
 }
 
 @Composable

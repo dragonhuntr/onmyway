@@ -3,6 +3,8 @@
 //   npx wrangler dev --local --port 8799 --test-scheduled
 //   node test/flow.mjs http://localhost:8799
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const base = process.argv[2] ?? "http://localhost:8799";
 const run = Date.now().toString(36);
@@ -19,6 +21,14 @@ async function call(method, path, { token, body, expect = 200 } = {}) {
   const data = await response.json();
   assert.equal(response.status, expect, `${method} ${path} → ${response.status} ${JSON.stringify(data)}`);
   return data;
+}
+
+/** Runs SQL on the local D1 the Worker uses, to fast-forward timers. */
+async function local(sql) {
+  execFileSync("npx", ["wrangler", "d1", "execute", "onmyway", "--local", "--command", sql], {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
+    stdio: "ignore",
+  });
 }
 
 /** Registers without verifying; the Worker hands back the emailed code as `devCode`. */
@@ -118,7 +128,30 @@ await call("POST", "/runner/location", { token: wiya.token, body: { lat: 42.1195
 await call("POST", `/orders/${orderID}/deliver`, { token: wiya.token, expect: 409 });
 assert.equal((await call("POST", `/orders/${orderID}/pickup`, { token: wiya.token })).order.status, "picked_up");
 assert.ok((await call("GET", `/orders/${orderID}`, { token: evan.token })).order.runner.location);
-assert.equal((await call("POST", `/orders/${orderID}/deliver`, { token: wiya.token })).order.status, "delivered");
+// Handoff code: only the customer sees it, and the runner needs it to finish
+const customerView = (await call("GET", `/orders/${orderID}`, { token: evan.token })).order;
+const runnerView = (await call("GET", `/orders/${orderID}`, { token: wiya.token })).order;
+assert.match(customerView.handoffCode, /^\d{4}$/);
+assert.equal(runnerView.handoffCode, null);
+assert.equal(runnerView.needsHandoffCode, true);
+const code = customerView.handoffCode;
+const wrong = String((Number(code) + 1) % 10_000).padStart(4, "0");
+assert.equal((await call("POST", `/orders/${orderID}/deliver`, { token: wiya.token, expect: 400 })).code, "handoff_code_required");
+for (let i = 0; i < 4; i++) {
+  const miss = await call("POST", `/orders/${orderID}/deliver`, { token: wiya.token, body: { code: wrong }, expect: 400 });
+  assert.equal(miss.code, "handoff_code_wrong");
+}
+const lock = await call("POST", `/orders/${orderID}/deliver`, { token: wiya.token, body: { code: wrong }, expect: 429 });
+assert.equal(lock.code, "handoff_locked");
+// Locked even with the right code until the lockout ends
+await call("POST", `/orders/${orderID}/deliver`, { token: wiya.token, body: { code }, expect: 429 });
+assert.equal((await call("GET", `/orders/${orderID}`, { token: evan.token })).order.status, "picked_up");
+await local(`UPDATE orders SET handoff_locked_until = NULL WHERE id = '${orderID}'`);
+assert.equal(
+  (await call("POST", `/orders/${orderID}/deliver`, { token: wiya.token, body: { code } })).order.status,
+  "delivered",
+);
+assert.equal((await call("GET", `/orders/${orderID}`, { token: evan.token })).order.handoffCode, null);
 assert.equal((await call("GET", "/orders/active", { token: evan.token })).order, null);
 
 // Rating with an extra tip

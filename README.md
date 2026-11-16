@@ -34,7 +34,7 @@ Built from the [On My Way Figma file](https://www.figma.com/design/dF8DvdlVrzKBv
 
 - **Account:** Login (01A) or Register (01B) with a `@psu.edu` email, through the Worker, which reads and writes D1. A new account enters the 6-digit code emailed to it before it can order or run.
 - **Customer:** Home → tap a restaurant → Transact web ordering → *Enter order number* → *Send to runner* → Stripe PaymentSheet (delivery fee + tip, held until drop-off) → matching → tracked in the **Orders** tab, with in-app chat → Delivered (rate + extra tip, or order again).
-- **Runner:** **Run** tab → add the walk you're taking → orders along it, sorted by detour → request details → *Accept delivery* → confirm pickup → confirm drop-off (location shared while delivering) → shows up in **Earnings** → *Cash out* through Stripe Connect.
+- **Runner:** **Run** tab → add the walk you're taking → orders along it, sorted by detour → request details → *Accept delivery* → confirm pickup → enter the customer's handoff code to confirm drop-off (location shared while delivering) → shows up in **Earnings** → *Cash out* through Stripe Connect.
 
 The app polls the Worker: the active order every 3 seconds, the runner feed every 5, chat every 3.
 
@@ -54,7 +54,7 @@ An order moves `awaiting_payment → matching → accepted → picked_up → del
 
 - **Paying:** `POST /orders` creates a Stripe PaymentIntent for fee + tip with manual capture and returns PaymentSheet details. After the sheet, `POST /orders/:id/payment` checks Stripe and opens the order to runners. The `payment_intent.*` webhook does the same if the app is closed.
 - **Matching:** runners pull `GET /runner/requests`, scored by detour against their trip. `POST /orders/:id/accept` only succeeds for the first runner.
-- **Delivering:** `pickup` and `deliver` move the order on. Drop-off captures the payment and credits the runner fee + tip in `ledger`. Extra tips from the Delivered screen are separate charges.
+- **Delivering:** `pickup` and `deliver` move the order on. Accepting gives the order a 4-digit handoff code that only the customer sees (on the tracking screen). The runner types it in to confirm drop-off, so `deliver` takes `{ code }`; 5 wrong codes lock entry for 5 minutes and tell the customer. Drop-off captures the payment and credits the runner fee + tip in `ledger`. Extra tips from the Delivered screen are separate charges.
 - **Earnings:** `GET /earnings` and `GET /deliveries` add up `ledger`. `POST /payouts` transfers the balance to the runner's Stripe Connect account and sends them to onboarding first.
 - **Cron:** every minute, orders nobody accepted within 20 minutes expire, and the card hold is released.
 - **Push notifications:** after sign-in the app sends its push token to `POST /devices`, tied to that session, so signing out stops pushes to the phone. Customers are notified when a runner takes, picks up, drops off or hands back their order, or when nobody comes; both sides get new chat messages. A tap opens Orders (customers) or Run (runners). Order updates (not chat) are also kept in `notifications`, which the bell on Home lists through `GET /notifications`; opening it calls `POST /notifications/read`. iOS pushes go straight to APNs and Android through Firebase Cloud Messaging (`api/src/push.ts`); each is skipped until its credentials are set (see *Push setup*).

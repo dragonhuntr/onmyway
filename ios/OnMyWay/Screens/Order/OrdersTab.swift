@@ -284,6 +284,8 @@ struct OrderTrackingView: View {
                 .background(Color.amberSoft, in: .rect(cornerRadius: 12))
             }
 
+            if let code = order.handoffCode { handoffCard(code) }
+
             timeline
 
             Button("Message \(runner.firstName)") { chatting = true }
@@ -298,6 +300,23 @@ struct OrderTrackingView: View {
         .background(.white)
         .clipShape(.rect(topLeadingRadius: 24, topTrailingRadius: 24))
         .shadow(color: Color(hex: 0x14211A).opacity(0.12), radius: 8, y: -4)
+    }
+
+    /// The code the runner needs to finish the delivery, so it can't be marked done without meeting you.
+    private func handoffCard(_ code: String) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("HANDOFF CODE").font(.caption.weight(.semibold)).tracking(0.72).foregroundStyle(Color.brandDeep)
+                Text("Give it to \(runner.firstName) when they arrive.").font(.footnote).foregroundStyle(Color.inkSecondary)
+            }
+            Spacer(minLength: 0)
+            Text(code).font(.title.bold().monospacedDigit()).tracking(4).foregroundStyle(Color.ink)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.brandSoft, in: .rect(cornerRadius: 16))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Handoff code \(code.map(String.init).joined(separator: " ")). Give it to \(runner.firstName) when they arrive.")
     }
 
     private var timeline: some View {
