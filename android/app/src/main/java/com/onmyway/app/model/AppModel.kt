@@ -539,8 +539,8 @@ class AppModel(application: Application) : AndroidViewModel(application) {
         return response.order
     }
 
-    suspend fun confirmDropoff(order: Order) {
-        call<OrderResponse>("POST", "orders/${order.id}/deliver")
+    suspend fun confirmDropoff(order: Order, code: String) {
+        call<OrderResponse>("POST", "orders/${order.id}/deliver", body = mapOf("code" to code))
         activeDelivery = null
         // The server credits the runner right after capture; give it a moment.
         delay(1_000)

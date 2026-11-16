@@ -39,6 +39,9 @@ export type OrderRow = {
   delivered_at: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
+  handoff_code: string | null;
+  handoff_attempts: number;
+  handoff_locked_until: string | null;
 };
 
 /** Statuses where an order is still in flight. */
@@ -185,6 +188,10 @@ export async function orderView(env: Env, order: OrderRow, viewer: User, known?:
     deliveredAt: order.delivered_at,
     cancelledAt: order.cancelled_at,
     cancelReason: order.cancel_reason,
+    // Only the customer sees the code; the runner has to get it from them at the door.
+    handoffCode: !asRunner && (order.status === "accepted" || order.status === "picked_up") ? order.handoff_code : null,
+    // Tells the runner's app to ask for a code (orders accepted before codes existed don't need one).
+    needsHandoffCode: order.handoff_code !== null,
   };
 }
 

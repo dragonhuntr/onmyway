@@ -417,6 +417,8 @@ struct ActiveDeliveryView: View {
     @State private var location = LocationReporter()
     @State private var here: CLLocationCoordinate2D?
     @State private var locationAllowed = true
+    @State private var handoffCode = ""
+    @FocusState private var codeFocused: Bool
 
     init(order: Order, done: @escaping () -> Void) {
         _order = State(initialValue: order)
@@ -424,6 +426,7 @@ struct ActiveDeliveryView: View {
     }
 
     private var atPickup: Bool { order.status == .accepted }
+    private var needsCode: Bool { !atPickup && order.needsHandoffCode == true }
     private var customerName: String { order.customer?.name ?? order.nameOnOrder }
 
     var body: some View {
@@ -457,6 +460,7 @@ struct ActiveDeliveryView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     destinationHeader
                     if atPickup { orderNumberCard }
+                    if needsCode { handoffCodeCard }
                     customerRow
                 }
                 .padding(.horizontal, 20)
@@ -495,7 +499,7 @@ struct ActiveDeliveryView: View {
             }
             Button(atPickup ? "Confirm pickup" : "Confirm drop-off") { Task { await advance() } }
                 .buttonStyle(.primaryCTA)
-                .disabled(isSaving)
+                .disabled(isSaving || (needsCode && handoffCode.count != 4))
             Button { reporting = true } label: {
                 Label("Something’s wrong with this order", systemImage: "xmark")
                     .font(.footnote.weight(.medium))
@@ -515,7 +519,7 @@ struct ActiveDeliveryView: View {
                 let updated = try await model.confirmPickup(order)
                 withAnimation { order = updated }
             } else {
-                try await model.confirmDropoff(order)
+                try await model.confirmDropoff(order, code: handoffCode)
                 done()
             }
         } catch {
@@ -577,6 +581,35 @@ struct ActiveDeliveryView: View {
             URLQueryItem(name: "dirflg", value: "w"),
         ]
         if let url = components.url { openURL(url) }
+    }
+
+    /// Drop-off step: the customer reads their 4-digit code from the Orders tab and the runner types it here.
+    private var handoffCodeCard: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "key").font(.caption)
+                Text("ASK \(customerName.uppercased()) FOR THEIR CODE").font(.caption.weight(.semibold)).tracking(0.72)
+            }
+            .foregroundStyle(Color.brandDeep)
+            TextField("", text: $handoffCode, prompt: Text("0000").foregroundStyle(Color.inkSecondary.opacity(0.5)))
+                .font(.largeTitle.bold().monospacedDigit())
+                .tracking(8)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color.ink)
+                .keyboardType(.numberPad)
+                .focused($codeFocused)
+                .onChange(of: handoffCode) { _, value in
+                    let digits = String(value.filter(\.isNumber).prefix(4))
+                    if digits != value { handoffCode = digits }
+                    if digits.count == 4 { codeFocused = false }
+                }
+                .accessibilityLabel("Handoff code")
+            Text("It’s on their Orders tab. You’re paid once it matches.")
+                .font(.footnote).foregroundStyle(Color.inkSecondary)
+        }
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(Color.brandSoft, in: .rect(cornerRadius: 16))
     }
 
     private var orderNumberCard: some View {

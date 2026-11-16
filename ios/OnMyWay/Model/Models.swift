@@ -171,6 +171,10 @@ struct Order: Decodable, Identifiable, Hashable, Sendable {
     let deliveredAt: Date?
     let cancelledAt: Date?
     let cancelReason: String?
+    /// 4-digit code the customer reads to the runner at the door. Only sent to the customer, while in flight.
+    let handoffCode: String?
+    /// For the runner: drop-off needs the customer's code (false for orders accepted before codes existed).
+    let needsHandoffCode: Bool?
 
     var dueNowCents: Int { deliveryFeeCents + tipCents }
 }

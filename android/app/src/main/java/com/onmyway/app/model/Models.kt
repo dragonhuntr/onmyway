@@ -144,6 +144,10 @@ data class Order(
     @Serializable(InstantSerializer::class) val deliveredAt: Instant? = null,
     @Serializable(InstantSerializer::class) val cancelledAt: Instant? = null,
     val cancelReason: String? = null,
+    /** 4-digit code the customer reads to the runner at the door. Only sent to the customer, while in flight. */
+    val handoffCode: String? = null,
+    /** For the runner: drop-off needs the customer's code (false for orders accepted before codes existed). */
+    val needsHandoffCode: Boolean = false,
 ) {
     @Serializable
     enum class Status {

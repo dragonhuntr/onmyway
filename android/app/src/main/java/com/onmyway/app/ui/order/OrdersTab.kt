@@ -419,6 +419,31 @@ private fun OrderTrackingScreen(model: AppModel, order: Order, runner: Runner) {
                 }
             }
 
+            order.handoffCode?.let { code ->
+                // The code the runner needs to finish, so a delivery can't be marked done without meeting you.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(OmwColors.BrandSoft, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .semantics(mergeDescendants = true) {
+                            contentDescription =
+                                "Handoff code ${code.toList().joinToString(" ")}. Give it to ${runner.firstName} when they arrive."
+                        },
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "HANDOFF CODE",
+                            style = OmwType.Caption.semibold.copy(letterSpacing = 0.72.sp),
+                            color = OmwColors.BrandDeep,
+                        )
+                        Text("Give it to ${runner.firstName} when they arrive.", style = OmwType.Footnote, color = OmwColors.InkSecondary)
+                    }
+                    Text(code, style = OmwType.Title.bold.copy(letterSpacing = 4.sp), color = OmwColors.Ink)
+                }
+            }
+
             Column {
                 val arriving = Instant.now().plus(Duration.ofMinutes(eta.toLong())).shortTime
                 TimelineStep("Order #${order.number} sent to ${runner.firstName}", order.acceptedAt?.shortTime, StepState.Done)

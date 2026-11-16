@@ -498,8 +498,8 @@ final class AppModel {
         return response.order
     }
 
-    func confirmDropoff(_ order: Order) async throws {
-        let _: OrderResponse = try await call("POST", "orders/\(order.id)/deliver")
+    func confirmDropoff(_ order: Order, code: String) async throws {
+        let _: OrderResponse = try await call("POST", "orders/\(order.id)/deliver", body: ["code": code])
         activeDelivery = nil
         // The server credits the runner right after capture; give it a moment.
         try? await Task.sleep(for: .seconds(1))
