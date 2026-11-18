@@ -31,6 +31,19 @@ struct Building: Decodable, Identifiable, Hashable, Sendable {
     let lng: Double?
 }
 
+extension URL {
+    /// The order number on Transact's post-checkout page
+    /// (`weborder.transactcampus.com/237/<id>/confirmation?orderid=<number>`), or nil for any other URL.
+    var transactOrderNumber: String? {
+        guard host() == "weborder.transactcampus.com", lastPathComponent == "confirmation",
+              let number = URLComponents(url: self, resolvingAgainstBaseURL: false)?
+                  .queryItems?.first(where: { $0.name.lowercased() == "orderid" })?.value,
+              !number.isEmpty, number.allSatisfy({ $0.isASCII && $0.isNumber })
+        else { return nil }
+        return number
+    }
+}
+
 struct Restaurant: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String

@@ -1,5 +1,6 @@
 package com.onmyway.app.model
 
+import android.net.Uri
 import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.graphics.Color
@@ -34,6 +35,17 @@ data class Place(val id: String, val name: String, val lat: Double? = null, val 
 
 @Serializable
 data class Building(val id: String, val name: String, val lat: Double? = null, val lng: Double? = null)
+
+/**
+ * The order number on Transact's post-checkout page
+ * (`weborder.transactcampus.com/237/<id>/confirmation?orderid=<number>`), or null for any other URL.
+ */
+fun transactOrderNumber(url: String): String? {
+    val uri = Uri.parse(url)
+    if (uri.host != "weborder.transactcampus.com" || uri.lastPathSegment != "confirmation") return null
+    val name = uri.queryParameterNames.firstOrNull { it.equals("orderid", ignoreCase = true) } ?: return null
+    return uri.getQueryParameter(name)?.takeIf { it.isNotEmpty() && it.all { digit -> digit in '0'..'9' } }
+}
 
 @Serializable
 data class Restaurant(

@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +68,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.onmyway.app.model.ApiException
 import com.onmyway.app.model.shortTime
+import com.onmyway.app.model.transactOrderNumber
 import com.onmyway.app.model.usd
 import com.onmyway.app.ui.components.rememberPayments
 import com.onmyway.app.ui.shared.DestinationPicker
@@ -103,14 +105,33 @@ private enum class OrderStep { EnterNumber, FindingRunner }
 @Composable
 fun OrderFlow(model: AppModel, restaurant: Restaurant) {
     val path = remember { mutableStateListOf<OrderStep>() }
+    var orderNumber by rememberSaveable { mutableStateOf("") }
+    // The number read off Transact's confirmation page, once checkout finishes in the web view.
+    var detectedNumber by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The web view stays composed underneath the later steps so the Transact receipt survives "Reopen receipt".
     Box(Modifier.fillMaxSize()) {
-        TransactScreen(model, restaurant, onNext = { path.add(OrderStep.EnterNumber) }, isCovered = path.isNotEmpty())
+        TransactScreen(
+            model,
+            restaurant,
+            onNext = { path.add(OrderStep.EnterNumber) },
+            // Fills in the order number and moves on as soon as Transact shows its confirmation page.
+            onOrderConfirmed = { number ->
+                if (number != detectedNumber) {
+                    detectedNumber = number
+                    orderNumber = number
+                    if (path.isEmpty()) path.add(OrderStep.EnterNumber)
+                }
+            },
+            isCovered = path.isNotEmpty(),
+        )
         when (path.lastOrNull()) {
             OrderStep.EnterNumber -> EnterOrderNumberScreen(
                 model,
                 restaurant,
+                orderNumber = orderNumber,
+                onOrderNumberChange = { orderNumber = it },
+                isDetected = orderNumber.isNotEmpty() && orderNumber == detectedNumber,
                 onBack = { path.removeAt(path.lastIndex) },
                 onReopenReceipt = { path.clear() },
                 onSent = { path.add(OrderStep.FindingRunner) },
@@ -126,10 +147,17 @@ fun OrderFlow(model: AppModel, restaurant: Restaurant) {
 /** 02_Order_Webview — food is ordered and paid on Transact's own site. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TransactScreen(model: AppModel, restaurant: Restaurant, onNext: () -> Unit, isCovered: Boolean) {
+private fun TransactScreen(
+    model: AppModel,
+    restaurant: Restaurant,
+    onNext: () -> Unit,
+    onOrderConfirmed: (String) -> Unit,
+    isCovered: Boolean,
+) {
     var isLoading by remember { mutableStateOf(true) }
     var canGoBack by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val currentOnOrderConfirmed by rememberUpdatedState(onOrderConfirmed)
     val webView = remember {
         WebView(context).apply {
             settings.javaScriptEnabled = true
@@ -142,6 +170,13 @@ private fun TransactScreen(model: AppModel, restaurant: Restaurant, onNext: () -
                 override fun onPageFinished(view: WebView, url: String?) {
                     isLoading = false
                     canGoBack = view.canGoBack()
+                }
+
+                // Also fires for the History API route changes a single-page site makes, which load no page.
+                override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                    super.doUpdateVisitedHistory(view, url, isReload)
+                    canGoBack = view.canGoBack()
+                    url?.let(::transactOrderNumber)?.let { currentOnOrderConfirmed(it) }
                 }
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -199,11 +234,13 @@ private fun TransactScreen(model: AppModel, restaurant: Restaurant, onNext: () -
 private fun EnterOrderNumberScreen(
     model: AppModel,
     restaurant: Restaurant,
+    orderNumber: String,
+    onOrderNumberChange: (String) -> Unit,
+    isDetected: Boolean,
     onBack: () -> Unit,
     onReopenReceipt: () -> Unit,
     onSent: () -> Unit,
 ) {
-    var orderNumber by rememberSaveable { mutableStateOf("") }
     var nameOnOrder by rememberSaveable { mutableStateOf(model.session?.shortName.orEmpty()) }
     var readyAt by remember { mutableStateOf(Instant.now().plus(Duration.ofMinutes(10))) }
     var tip by rememberSaveable { mutableStateOf(Tip.One) }
@@ -252,10 +289,11 @@ private fun EnterOrderNumberScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
         ) {
-            PaidBanner()
+            PaidBanner(isDetected)
             OrderNumberCard(
                 restaurant,
-                orderNumber, { orderNumber = it.filter(Char::isDigit) },
+                orderNumber, { onOrderNumberChange(it.filter(Char::isDigit)) },
+                isDetected,
                 nameOnOrder, { nameOnOrder = it },
                 readyAt, { readyAt = it },
                 onReopenReceipt,
@@ -288,7 +326,7 @@ private fun EnterOrderNumberScreen(
 }
 
 @Composable
-private fun PaidBanner() {
+private fun PaidBanner(isDetected: Boolean) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -302,7 +340,8 @@ private fun PaidBanner() {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("Food paid on Transact", style = OmwType.Subheadline.semibold, color = OmwColors.Ink)
             Text(
-                "Add your order number and we’ll pass it to a runner heading your way.",
+                if (isDetected) "We’ve got your order number and we’ll pass it to a runner heading your way."
+                else "Add your order number and we’ll pass it to a runner heading your way.",
                 style = OmwType.Footnote,
                 color = OmwColors.InkSecondary,
             )
@@ -315,6 +354,7 @@ private fun OrderNumberCard(
     restaurant: Restaurant,
     orderNumber: String,
     onNumberChange: (String) -> Unit,
+    isDetected: Boolean,
     nameOnOrder: String,
     onNameChange: (String) -> Unit,
     readyAt: Instant,
@@ -360,7 +400,8 @@ private fun OrderNumberCard(
             },
         )
         Text(
-            "It’s at the top of your Transact confirmation screen and email.",
+            if (isDetected) "Filled in from your Transact confirmation."
+            else "It’s at the top of your Transact confirmation screen and email.",
             style = OmwType.Footnote,
             color = OmwColors.InkSecondary,
         )

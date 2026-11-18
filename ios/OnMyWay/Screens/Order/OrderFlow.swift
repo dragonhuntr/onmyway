@@ -7,29 +7,50 @@ enum OrderStep: Hashable { case enterNumber, findingRunner }
 struct OrderFlow: View {
     let restaurant: Restaurant
     @State private var path: [OrderStep] = []
+    @State private var orderNumber = ""
+    /// The number read off Transact's confirmation page, once checkout finishes in the web view.
+    @State private var detectedNumber: String?
 
     var body: some View {
         NavigationStack(path: $path) {
-            TransactWebView(restaurant: restaurant)
+            TransactWebView(restaurant: restaurant, onOrderConfirmed: orderConfirmed)
                 .navigationDestination(for: OrderStep.self) { step in
                     switch step {
-                    case .enterNumber: EnterOrderNumberView(restaurant: restaurant, path: $path)
+                    case .enterNumber:
+                        EnterOrderNumberView(
+                            restaurant: restaurant,
+                            orderNumber: $orderNumber,
+                            detectedNumber: detectedNumber,
+                            path: $path
+                        )
                     case .findingRunner: FindingRunnerView()
                     }
                 }
         }
         .tint(.ink)
     }
+
+    /// Fills in the order number and moves on as soon as Transact shows its confirmation page.
+    private func orderConfirmed(_ number: String) {
+        guard number != detectedNumber else { return }
+        detectedNumber = number
+        orderNumber = number
+        if path.isEmpty { path.append(.enterNumber) }
+    }
 }
 
 /// 02_Order_Webview — food is ordered and paid on Transact's own site.
 struct TransactWebView: View {
     let restaurant: Restaurant
+    /// Called with the order number when the web view lands on Transact's confirmation page.
+    let onOrderConfirmed: (String) -> Void
     @Environment(AppModel.self) private var model
     @State private var isLoading = true
 
     var body: some View {
-        WKWebViewRepresentable(url: restaurant.orderingURL, isLoading: $isLoading)
+        WKWebViewRepresentable(url: restaurant.orderingURL, isLoading: $isLoading) { url in
+            if let number = url.transactOrderNumber { onOrderConfirmed(number) }
+        }
             .overlay { if isLoading { ProgressView() } }
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.white, for: .navigationBar)
@@ -64,26 +85,47 @@ struct TransactWebView: View {
     }
 }
 
-/// Minimal WKWebView wrapper that reports loading state.
+/// Minimal WKWebView wrapper that reports loading state and the page's current URL.
 struct WKWebViewRepresentable: UIViewRepresentable {
     let url: URL
     @Binding var isLoading: Bool
+    var onURLChange: (URL) -> Void = { _ in }
 
-    func makeCoordinator() -> Coordinator { Coordinator(isLoading: $isLoading) }
+    func makeCoordinator() -> Coordinator { Coordinator(isLoading: $isLoading, onURLChange: onURLChange) }
 
     func makeUIView(context: Context) -> WKWebView {
         let view = WKWebView()
         view.navigationDelegate = context.coordinator
         view.allowsBackForwardNavigationGestures = true
+        context.coordinator.observeURL(of: view)
         view.load(URLRequest(url: url))
         return view
     }
 
-    func updateUIView(_ view: WKWebView, context: Context) {}
+    func updateUIView(_ view: WKWebView, context: Context) {
+        context.coordinator.onURLChange = onURLChange
+    }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         @Binding var isLoading: Bool
-        init(isLoading: Binding<Bool>) { _isLoading = isLoading }
+        var onURLChange: (URL) -> Void
+        private var urlObservation: NSKeyValueObservation?
+
+        init(isLoading: Binding<Bool>, onURLChange: @escaping (URL) -> Void) {
+            _isLoading = isLoading
+            self.onURLChange = onURLChange
+        }
+
+        /// Watches `url` itself rather than navigations: a single-page site changes route through the
+        /// History API, which never reaches the navigation delegate.
+        func observeURL(of view: WKWebView) {
+            urlObservation = view.observe(\.url, options: .new) { [weak self] view, _ in
+                MainActor.assumeIsolated {
+                    guard let self, let url = view.url else { return }
+                    self.onURLChange(url)
+                }
+            }
+        }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { isLoading = false }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { isLoading = false }
@@ -96,9 +138,11 @@ struct WKWebViewRepresentable: UIViewRepresentable {
 /// 03_Enter_Order_Number — hand the paid Transact order to a runner.
 struct EnterOrderNumberView: View {
     let restaurant: Restaurant
+    @Binding var orderNumber: String
+    /// The number read off Transact's confirmation page, if there was one.
+    let detectedNumber: String?
     @Binding var path: [OrderStep]
     @Environment(AppModel.self) private var model
-    @State private var orderNumber = ""
     @State private var nameOnOrder = ""
     @State private var readyAt = Date.now.addingTimeInterval(10 * 60)
     @State private var tip: Tip = .one
@@ -109,6 +153,7 @@ struct EnterOrderNumberView: View {
 
     private let deliveryFee = 100
     private var due: Int { deliveryFee + tip.rawValue }
+    private var isDetected: Bool { !orderNumber.isEmpty && orderNumber == detectedNumber }
 
     var body: some View {
         ScrollView {
@@ -198,7 +243,11 @@ struct EnterOrderNumberView: View {
                 .background(Color.brand, in: .circle)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Food paid on Transact").font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
-                Text("Add your order number and we’ll pass it to a runner heading your way.")
+                Text(
+                    isDetected
+                        ? "We’ve got your order number and we’ll pass it to a runner heading your way."
+                        : "Add your order number and we’ll pass it to a runner heading your way."
+                )
                     .font(.footnote).foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 0)
@@ -233,7 +282,11 @@ struct EnterOrderNumberView: View {
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(numberFocused ? Color.brand : .hairline, lineWidth: 2))
             .onTapGesture { numberFocused = true }
 
-            Text("It’s at the top of your Transact confirmation screen and email.")
+            Text(
+                isDetected
+                    ? "Filled in from your Transact confirmation."
+                    : "It’s at the top of your Transact confirmation screen and email."
+            )
                 .font(.footnote).foregroundStyle(Color.inkSecondary)
 
             HStack(spacing: 10) {
