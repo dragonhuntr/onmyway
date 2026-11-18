@@ -124,11 +124,11 @@ struct RunnerHomeView: View {
                 Text("+ Add a trip")
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(Color.brandMid, in: .rect(cornerRadius: 10))
+                    .background(.white, in: .rect(cornerRadius: 10))
             }
             .buttonStyle(.plain)
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.brandDeep)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -176,12 +176,12 @@ struct RunnerHomeView: View {
                     Text("+ Add another trip")
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.brandOutline))
+                        .background(.white, in: .rect(cornerRadius: 10))
                 }
             }
             .buttonStyle(.plain)
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.brandDeep)
         }
         .padding(18)
         .background(Color.brand, in: .rect(cornerRadius: 18))

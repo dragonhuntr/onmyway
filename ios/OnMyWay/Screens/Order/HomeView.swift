@@ -50,17 +50,18 @@ struct HomeView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .center, spacing: 12) {
             Button { choosingDestination = true } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Deliver to")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.inkSecondary)
-                    HStack(spacing: 6) {
+                    HStack(alignment: .center, spacing: 6) {
                         Image(.pinLocation).resizable().frame(width: 18, height: 18)
-                        Text(model.destination?.short ?? "Choose a building")
+                        Text(model.destination?.short ?? "Pick a building")
                             .font(.callout.weight(.semibold))
                             .foregroundStyle(Color.ink)
+                            .lineLimit(1)
                         Image(.chevronRight).resizable().frame(width: 16, height: 16)
                     }
                 }
@@ -203,7 +204,7 @@ struct RestaurantCard: View {
         VStack(alignment: .leading, spacing: 10) {
             FoodTile(restaurant: restaurant, size: CGSize(width: 148, height: 104))
             VStack(alignment: .leading, spacing: 3) {
-                Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
+                Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink).lineLimit(1)
                 Text("$1 delivery · \(restaurant.eta)").font(.caption).foregroundStyle(Color.inkSecondary)
                 if let building = restaurant.building {
                     Text(building.name).font(.caption.weight(.medium)).foregroundStyle(Color.ink)
@@ -225,7 +226,7 @@ struct RestaurantRow: View {
         HStack(spacing: 12) {
             FoodTile(restaurant: restaurant, size: CGSize(width: 60, height: 60))
             VStack(alignment: .leading, spacing: 3) {
-                Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
+                Text(restaurant.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink).lineLimit(1)
                 Text("\(restaurant.distance) · \(restaurant.eta)").font(.caption).foregroundStyle(Color.inkSecondary)
                 let isOpen = restaurant.hours.isOpen()
                 Text(restaurant.hours.status())
