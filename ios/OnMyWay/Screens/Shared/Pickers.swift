@@ -15,7 +15,7 @@ struct DestinationPicker: View {
             Form {
                 Section("Building") {
                     Picker("Building", selection: $buildingID) {
-                        Text("Choose…").tag("")
+                        Text("Pick a building").tag("")
                         ForEach(model.buildings) { Text($0.name).tag($0.id) }
                     }
                 }
@@ -23,7 +23,18 @@ struct DestinationPicker: View {
                     TextField("Room 174", text: $room)
                 }
                 Section {
-                    TextField("Text me when you arrive.", text: $note, axis: .vertical)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        TextField("Text me when you arrive.", text: $note, axis: .vertical)
+                            .lineLimit(3...5)
+                            .onChange(of: note) { _, newValue in
+                                if newValue.count > 150 {
+                                    note = String(newValue.prefix(150))
+                                }
+                            }
+                        Text("\(note.count)/150")
+                            .font(.caption2)
+                            .foregroundStyle(Color.inkSecondary)
+                    }
                 } header: {
                     Text("Note for your runner")
                 } footer: {

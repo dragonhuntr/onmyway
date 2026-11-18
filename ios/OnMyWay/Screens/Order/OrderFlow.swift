@@ -257,8 +257,7 @@ struct EnterOrderNumberView: View {
             value().font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, height: 60, alignment: .center)
         .background(Color.canvas, in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)
     }
@@ -376,8 +375,8 @@ struct FindingRunnerView: View {
                 .padding(.vertical, 6)
                 .background(Color.brandSoft, in: .capsule)
 
-                Text("Looking for a runner on their way to \(building)")
-                    .font(.title3.bold())
+                Text("Finding runner · \(building)")
+                    .font(.headline)
                     .foregroundStyle(Color.ink)
 
                 ProgressView(value: progress)

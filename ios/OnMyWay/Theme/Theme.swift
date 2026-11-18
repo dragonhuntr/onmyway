@@ -173,5 +173,11 @@ struct Pill: View {
 }
 
 extension Decimal {
-    var usd: String { formatted(.currency(code: "USD")) }
+    var usd: String {
+        let d = NSDecimalNumber(decimal: self).doubleValue
+        if d.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "$%.0f", d)
+        }
+        return formatted(.currency(code: "USD"))
+    }
 }
