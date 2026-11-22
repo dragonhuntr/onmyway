@@ -78,6 +78,7 @@ import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
 import com.onmyway.app.model.AppModel
+import com.onmyway.app.model.Order
 import com.onmyway.app.model.Restaurant
 import com.onmyway.app.model.Tip
 import com.onmyway.app.ui.components.DeliveryMap
