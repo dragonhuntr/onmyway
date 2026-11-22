@@ -6,6 +6,7 @@ import { requireUser, userByID } from "./auth.ts";
 import type { Building, Point, RestaurantRow } from "./places.ts";
 import { buildingMap, restaurantMap, walkMiles, walkMinutes } from "./places.ts";
 import { paymentSheet, stripe, type PaymentIntent } from "./stripe.ts";
+import { notify } from "./push.ts";
 
 export type OrderStatus =
   | "awaiting_payment"
@@ -379,6 +380,34 @@ export async function cancel(env: Env, order: OrderRow, reason: string, status: 
     }
   }
   return true;
+}
+
+/**
+ * POST /orders/:id/ready — the customer got Transact's "order ready" text and is telling the runner
+ * to grab it, instead of typing that in chat. Only while the runner is still heading to pickup.
+ */
+export async function markFoodReady(c: Context): Promise<Response> {
+  const user = await requireUser(c);
+  const order = await participantOrder(c.env, c.params.id, user);
+  if (order.customer_id !== user.id) throw new HttpError(403, "Only the customer can mark the food ready.");
+  if (order.status !== "accepted" || !order.runner_id) {
+    throw new HttpError(409, "You can tell your runner once they’re heading to the restaurant.");
+  }
+  const ready = order.ready_at ? Date.parse(order.ready_at) : 0;
+  if (ready <= Date.now() && Date.now() - ready < 45_000) {
+    throw new HttpError(429, "You just told your runner the food is ready.");
+  }
+  const readyAt = now();
+  await c.env.DB.prepare("UPDATE orders SET ready_at = ?2 WHERE id = ?1").bind(order.id, readyAt).run();
+  const restaurants = await restaurantMap(c.env);
+  const place = restaurants.get(order.restaurant_id)?.name ?? "the restaurant";
+  await notify(c.env, order.runner_id, {
+    title: "Food is ready",
+    body: `${user.first_name} says order #${order.order_number} is up for pickup at ${place}.`,
+    kind: "delivery",
+    orderId: order.id,
+  });
+  return json({ order: await orderView(c.env, { ...order, ready_at: readyAt }, user) });
 }
 
 /** POST /orders/:id/report `{ reason, details }` */

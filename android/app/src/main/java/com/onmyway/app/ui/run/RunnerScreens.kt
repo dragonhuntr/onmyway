@@ -92,8 +92,10 @@ import com.onmyway.app.ui.components.PinKind
 import com.onmyway.app.ui.components.RefreshableColumn
 import com.onmyway.app.ui.components.ReportLocationWhileVisible
 import com.onmyway.app.ui.components.TopBar
+import com.onmyway.app.ui.components.meters
 import com.onmyway.app.ui.components.openUrl
 import com.onmyway.app.ui.components.point
+import com.onmyway.app.ui.components.walkingRoute
 import com.onmyway.app.ui.shared.TripEditor
 import com.onmyway.app.ui.theme.ChipToggle
 import com.onmyway.app.ui.theme.CompactButton
@@ -110,6 +112,7 @@ import com.onmyway.app.ui.theme.bold
 import com.onmyway.app.ui.theme.card
 import com.onmyway.app.ui.theme.medium
 import com.onmyway.app.ui.theme.semibold
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -583,6 +586,18 @@ private fun StopRow(kind: PinKind, title: String, detail: String, isLast: Boolea
 
 private val reportReasons = listOf("Order isn’t ready", "Wrong order number", "Can’t find the customer", "Other")
 
+/** A point on the path about `distance` meters before the last one. */
+private fun indexAbout(distance: Double, points: List<Pair<Double, Double>>): Int {
+    var walked = 0.0
+    var index = points.lastIndex
+    while (index > 0) {
+        walked += meters(points[index], points[index - 1])
+        if (walked >= distance) return index - 1
+        index -= 1
+    }
+    return 0
+}
+
 /**
  * 09_Active_Delivery — step-by-step pickup and hand-off.
  *
@@ -604,11 +619,51 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
     val customerName = order.customer?.name ?: order.nameOnOrder
     var here by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var locationAllowed by remember { mutableStateOf(true) }
+    var simulating by remember { mutableStateOf(false) }
+    var walkJob by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(Unit) { model.loadBuildings() }
+    LaunchedEffect(order.id) {
+        // The customer can mark the food ready while this screen is open.
+        while (true) {
+            delay(5_000)
+            model.refreshRunner()
+            val fresh = model.activeDelivery ?: continue
+            if (fresh.id == order.id && fresh.status == order.status) order = fresh
+        }
+    }
 
-    ReportLocationWhileVisible(onAllowed = { locationAllowed = it }) { latitude, longitude ->
+    ReportLocationWhileVisible(enabled = !simulating, onAllowed = { locationAllowed = it }) { latitude, longitude ->
         here = latitude to longitude
         scope.launch { model.reportLocation(latitude, longitude) }
+    }
+
+    fun stopWalk() {
+        walkJob?.cancel()
+        walkJob = null
+        simulating = false
+    }
+
+    /** Walks the campus path and sends each point, so the customer's map moves too.
+     *  Before pickup the runner starts about 150 meters from the restaurant. After pickup they walk to the drop-off. */
+    fun startWalk() {
+        val pickup = order.restaurant.building.point() ?: return
+        val dropoff = order.destination.point() ?: return
+        val end = if (atPickup) pickup else dropoff
+        val routeStart = if (atPickup) dropoff else pickup
+        simulating = true
+        walkJob = scope.launch {
+            val route = walkingRoute(routeStart, end)
+            val points = if (route != null && route.size >= 2) route else listOf(routeStart, end)
+            val step = maxOf(1, points.size / 28)
+            var index = if (atPickup) indexAbout(150.0, points) else 0
+            while (index < points.size) {
+                val point = points[index]
+                here = point
+                model.reportLocation(point.first, point.second)
+                delay(1_500)
+                index += step
+            }
+        }
     }
 
     fun advance() = scope.launch {
@@ -669,7 +724,18 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
                     runnerTitle = "You",
                     headingToPickup = atPickup,
                 )
-                if (!locationAllowed) {
+                Text(
+                    if (simulating) "Stop walk" else "Simulate walk",
+                    style = OmwType.Caption.semibold,
+                    color = OmwColors.BrandDeep,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp)
+                        .background(Color.White, CircleShape)
+                        .clickable { if (simulating) stopWalk() else startWalk() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+                if (!locationAllowed && !simulating) {
                     Text(
                         "Allow location so they can see you",
                         style = OmwType.Caption.semibold,
@@ -703,7 +769,13 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
                             )
                             Text(
                                 if (atPickup) {
-                                    "${order.restaurant.building.name} · Ready at ${order.readyAt?.shortTime ?: "any minute"}"
+                                    val readyAt = order.readyAt
+                                    val ready = if (readyAt == null || !readyAt.isAfter(java.time.Instant.now().plusSeconds(120))) {
+                                        "Ready now"
+                                    } else {
+                                        "Ready at ${readyAt.shortTime}"
+                                    }
+                                    "${order.restaurant.building.name} · $ready"
                                 } else {
                                     "${order.walkMinutes} min walk from pickup"
                                 },

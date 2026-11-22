@@ -21,7 +21,7 @@
     "EMAIL_FROM": "On My Way <onboarding@resend.dev>"
   },
   // Secrets (wrangler secret put): STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET,
-  // FCM_SERVICE_ACCOUNT, APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, RESEND_API_KEY
+  // RESEND_API_KEY. Optional, push is skipped until set: FCM_SERVICE_ACCOUNT, APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID
   "triggers": {
     "crons": ["* * * * *"]
   }

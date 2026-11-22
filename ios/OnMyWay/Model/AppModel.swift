@@ -453,6 +453,13 @@ final class AppModel {
         return response.message
     }
 
+    /// Tells the assigned runner the food is ready to grab. Transact texts the customer, not the runner.
+    func markFoodReady() async throws {
+        guard let order = activeOrder else { return }
+        let response: OrderResponse = try await call("POST", "orders/\(order.id)/ready")
+        apply(response.order)
+    }
+
     func report(_ orderID: String, reason: String, details: String) async throws {
         let _: Empty = try await call("POST", "orders/\(orderID)/report", body: ["reason": reason, "details": details])
     }

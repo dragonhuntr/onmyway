@@ -16,6 +16,8 @@ struct DeliveryMap: View {
     @State private var position: MapCameraPosition = .automatic
     /// Full walking route for this leg. The drawn line is the part still ahead of the runner.
     @State private var fullRoute: [CLLocationCoordinate2D] = []
+    /// The stop `fullRoute` was requested for. The path usually ends on a road, not on the building pin.
+    @State private var routedTo: CLLocationCoordinate2D?
 
     var body: some View {
         Map(position: $position) {
@@ -64,7 +66,10 @@ struct DeliveryMap: View {
         .task(id: routeRequestKey) {
             guard needsRoute, let start = legStart, let end = legEnd else { return }
             let fetched = await walkingRoute(from: start, to: end)
-            if !fetched.isEmpty { fullRoute = fetched }
+            if !fetched.isEmpty {
+                fullRoute = fetched
+                routedTo = end
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Map from \(pickupTitle) to \(dropoffTitle)")
@@ -74,12 +79,12 @@ struct DeliveryMap: View {
     private var legStart: CLLocationCoordinate2D? { runner ?? pickup }
     private var legEnd: CLLocationCoordinate2D? { runner == nil ? dropoff : (headingToPickup ? pickup : dropoff) }
 
-    /// A new route when the next stop changes, or when the runner has left the path by about 45 meters.
+    /// A new route when the next stop changes, or when the runner has left the path by about 80 meters.
     private var needsRoute: Bool {
         guard let start = legStart, let end = legEnd, meters(start, end) >= 25 else { return false }
-        guard fullRoute.count >= 2, let last = fullRoute.last else { return true }
-        if meters(last, end) > 40 { return true }
-        return nearestMeters(start) > 45
+        guard fullRoute.count >= 2, let routedTo else { return true }
+        if meters(routedTo, end) > 30 { return true }
+        return closestProgress(to: start).distance > 80
     }
 
     /// Stable while the runner stays on the path, so a location update trims the line without another request.
@@ -92,27 +97,46 @@ struct DeliveryMap: View {
     /// Walking path still ahead. It begins at the live position, so it shortens as the runner gets closer.
     private var line: [CLLocationCoordinate2D] {
         guard let start = legStart, let end = legEnd else { return [] }
-        guard fullRoute.count >= 2, let last = fullRoute.last, meters(last, end) <= 40 else {
+        guard fullRoute.count >= 2, let routedTo, meters(routedTo, end) <= 30 else {
             return [start, end]
         }
-        return [start] + Array(fullRoute.suffix(from: nearestIndex(to: start)))
+        let progress = closestProgress(to: start)
+        var points = [start, progress.point] + Array(fullRoute.suffix(from: progress.index + 1))
+        if let last = points.last, meters(last, end) > 12 { points.append(end) }
+        return points
     }
 
-    private func nearestIndex(to point: CLLocationCoordinate2D) -> Int {
-        var best = 0
+    /// Closest place on the path itself, including the stretch between two corners.
+    private func closestProgress(to point: CLLocationCoordinate2D) -> (index: Int, point: CLLocationCoordinate2D, distance: Double) {
+        guard fullRoute.count >= 2 else { return (0, point, .greatestFiniteMagnitude) }
+        var bestIndex = 0
+        var bestPoint = fullRoute[0]
         var bestDistance = Double.greatestFiniteMagnitude
-        for (index, coordinate) in fullRoute.enumerated() {
-            let distance = meters(point, coordinate)
+        for index in 0..<(fullRoute.count - 1) {
+            let projected = closestPoint(on: fullRoute[index], fullRoute[index + 1], to: point)
+            let distance = meters(point, projected)
             if distance < bestDistance {
                 bestDistance = distance
-                best = index
+                bestIndex = index
+                bestPoint = projected
             }
         }
-        return best
+        return (bestIndex, bestPoint, bestDistance)
     }
 
-    private func nearestMeters(_ point: CLLocationCoordinate2D) -> Double {
-        fullRoute.map { meters(point, $0) }.min() ?? .greatestFiniteMagnitude
+    /// Projects onto the segment in meters, so a north-south stretch is not favored over an east-west one.
+    private func closestPoint(on a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D, to p: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        let cosLat = cos((a.latitude + b.latitude) * .pi / 360)
+        let abx = b.latitude - a.latitude
+        let aby = (b.longitude - a.longitude) * cosLat
+        let apx = p.latitude - a.latitude
+        let apy = (p.longitude - a.longitude) * cosLat
+        let ab2 = abx * abx + aby * aby
+        let t = ab2 == 0 ? 0 : min(1, max(0, (apx * abx + apy * aby) / ab2))
+        return CLLocationCoordinate2D(
+            latitude: a.latitude + (b.latitude - a.latitude) * t,
+            longitude: a.longitude + (b.longitude - a.longitude) * t
+        )
     }
 
     private func bucket(_ coordinate: CLLocationCoordinate2D?) -> String {
@@ -131,7 +155,7 @@ struct DeliveryMap: View {
 
     private var region: MKCoordinateRegion {
         let focus = line.count >= 2 ? line : [headingToPickup ? pickup : dropoff, runner, pickup, dropoff].compactMap { $0 }
-        guard let first = focus.first else {
+        guard !focus.isEmpty else {
             return MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: 42.1192, longitude: -79.9825),
                 span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
@@ -149,7 +173,7 @@ struct DeliveryMap: View {
 }
 
 /// Walking directions along campus paths. Empty when the request fails, so the map keeps a straight line.
-private func walkingRoute(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) async -> [CLLocationCoordinate2D] {
+func walkingRoute(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) async -> [CLLocationCoordinate2D] {
     let request = MKDirections.Request()
     request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
     request.destination = MKMapItem(placemark: MKPlacemark(coordinate: end))
@@ -165,7 +189,7 @@ private func walkingRoute(from start: CLLocationCoordinate2D, to end: CLLocation
     }
 }
 
-private func meters(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
+func meters(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
     let lat = (a.latitude - b.latitude) * 111_320
     let lng = (a.longitude - b.longitude) * 111_320 * cos((a.latitude + b.latitude) * .pi / 360)
     return hypot(lat, lng)

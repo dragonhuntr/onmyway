@@ -542,6 +542,27 @@ private fun OrderTrackingScreen(model: AppModel, order: Order, runner: Runner) {
                 TimelineStep("Delivered", null, StepState.Upcoming, isLast = true)
             }
 
+            if (order.status == Order.Status.Accepted) {
+                var telling by remember { mutableStateOf(false) }
+                var told by remember { mutableStateOf(false) }
+                val scope = rememberCoroutineScope()
+                CtaButton(
+                    if (told) "Runner notified" else "Food is ready",
+                    enabled = !telling && !told,
+                ) {
+                    telling = true
+                    scope.launch {
+                        try {
+                            model.markFoodReady()
+                            told = true
+                        } catch (_: Exception) {
+                            told = false
+                        }
+                        telling = false
+                    }
+                }
+            }
+
             CtaButton("Message ${runner.firstName}", kind = CtaKind.Secondary) {
                 model.chat = ChatTarget(order.id, runner.name)
             }

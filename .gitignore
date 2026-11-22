@@ -5,6 +5,7 @@ xcuserdata/
 *.xcuserstate
 .DS_Store
 .claude/
+OnMyWay_Project_Status_Checkpoint_*.pdf
 
 # Android
 android/.gradle/

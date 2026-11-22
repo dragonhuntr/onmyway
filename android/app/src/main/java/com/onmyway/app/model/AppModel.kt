@@ -493,6 +493,13 @@ class AppModel(application: Application) : AndroidViewModel(application) {
     suspend fun send(body: String, orderId: String): ChatMessage =
         call<MessageResponse>("POST", "orders/$orderId/messages", body = mapOf("body" to body)).message
 
+    /** Tells the assigned runner the food is ready to grab. Transact texts the customer, not the runner. */
+    suspend fun markFoodReady() {
+        val order = activeOrder ?: return
+        val response = call<OrderResponse>("POST", "orders/${order.id}/ready")
+        apply(response.order)
+    }
+
     suspend fun report(orderId: String, reason: String, details: String) {
         call<Empty>("POST", "orders/$orderId/report", body = mapOf("reason" to reason, "details" to details))
     }

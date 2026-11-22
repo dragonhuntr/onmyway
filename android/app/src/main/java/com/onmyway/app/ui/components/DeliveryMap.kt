@@ -97,14 +97,18 @@ fun DeliveryMap(
         val from = runner ?: pickup
         val to = if (runner == null) dropoff else if (headingToPickup) pickup else dropoff
         var fullRoute by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
-        val requestKey = routeRequestKey(fullRoute, from, to)
+        var routedTo by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+        val requestKey = routeRequestKey(fullRoute, routedTo, from, to)
         LaunchedEffect(requestKey) {
-            if (!needsRoute(fullRoute, from, to)) return@LaunchedEffect
+            if (!needsRoute(fullRoute, routedTo, from, to)) return@LaunchedEffect
             val fetched = walkingRoute(from, to)
-            if (!fetched.isNullOrEmpty()) fullRoute = fetched
+            if (!fetched.isNullOrEmpty()) {
+                fullRoute = fetched
+                routedTo = to
+            }
         }
-        val line = remainingRoute(fullRoute, from, to)
-        val routeFits = fullRoute.size >= 2 && meters(fullRoute.last(), to) <= 40
+        val line = remainingRoute(fullRoute, routedTo, from, to)
+        val routeFits = fullRoute.size >= 2 && routedTo != null && meters(routedTo!!, to) <= 30
         val framePoints = buildList {
             if (routeFits) addAll(fullRoute)
             add(pickup)
@@ -146,18 +150,28 @@ fun DeliveryMap(
     }
 }
 
-/** A new route when the next stop changes, or when the runner has left the path by about 45 meters. */
-private fun needsRoute(route: List<Pair<Double, Double>>, from: Pair<Double, Double>, to: Pair<Double, Double>): Boolean {
+/** A new route when the next stop changes, or when the runner has left the path by about 80 meters. */
+private fun needsRoute(
+    route: List<Pair<Double, Double>>,
+    routedTo: Pair<Double, Double>?,
+    from: Pair<Double, Double>,
+    to: Pair<Double, Double>,
+): Boolean {
     if (meters(from, to) < 25) return false
-    if (route.size < 2) return true
-    if (meters(route.last(), to) > 40) return true
-    return route.minOf { meters(from, it) } > 45
+    if (route.size < 2 || routedTo == null) return true
+    if (meters(routedTo, to) > 30) return true
+    return progressAlong(route, from).distance > 80
 }
 
 /** Stable while the runner stays on the path, so a location update trims the line without another request. */
-private fun routeRequestKey(route: List<Pair<Double, Double>>, from: Pair<Double, Double>, to: Pair<Double, Double>): String {
+private fun routeRequestKey(
+    route: List<Pair<Double, Double>>,
+    routedTo: Pair<Double, Double>?,
+    from: Pair<Double, Double>,
+    to: Pair<Double, Double>,
+): String {
     val end = "${(to.first * 2_000).toInt()}:${(to.second * 2_000).toInt()}"
-    if (!needsRoute(route, from, to)) return "$end|on"
+    if (!needsRoute(route, routedTo, from, to)) return "$end|on"
     val start = "${(from.first * 2_000).toInt()}:${(from.second * 2_000).toInt()}"
     return "$end|off|$start"
 }
@@ -165,22 +179,53 @@ private fun routeRequestKey(route: List<Pair<Double, Double>>, from: Pair<Double
 /** Walking path still ahead. It begins at the live position, so it shortens as the runner gets closer. */
 private fun remainingRoute(
     route: List<Pair<Double, Double>>,
+    routedTo: Pair<Double, Double>?,
     from: Pair<Double, Double>,
     to: Pair<Double, Double>,
 ): List<Pair<Double, Double>> {
-    if (route.size < 2 || meters(route.last(), to) > 40) return listOf(from, to)
-    val index = route.indices.minBy { meters(from, route[it]) }
-    return listOf(from) + route.drop(index)
+    if (route.size < 2 || routedTo == null || meters(routedTo, to) > 30) return listOf(from, to)
+    val along = progressAlong(route, from)
+    val ahead = listOf(from, along.point) + route.drop(along.index + 1)
+    return if (meters(ahead.last(), to) > 12) ahead + to else ahead
 }
 
-private fun meters(a: Pair<Double, Double>, b: Pair<Double, Double>): Double {
+/** Closest place on the path itself, including the stretch between two corners. */
+private data class RouteProgress(val index: Int, val point: Pair<Double, Double>, val distance: Double)
+
+private fun progressAlong(route: List<Pair<Double, Double>>, from: Pair<Double, Double>): RouteProgress {
+    var best = RouteProgress(0, route.first(), Double.MAX_VALUE)
+    for (index in 0 until route.lastIndex) {
+        val point = closestOnSegment(route[index], route[index + 1], from)
+        val distance = meters(from, point)
+        if (distance < best.distance) best = RouteProgress(index, point, distance)
+    }
+    return best
+}
+
+/** Projects onto the segment in meters, so a north-south stretch is not favored over an east-west one. */
+private fun closestOnSegment(
+    a: Pair<Double, Double>,
+    b: Pair<Double, Double>,
+    p: Pair<Double, Double>,
+): Pair<Double, Double> {
+    val cosLat = cos(Math.toRadians((a.first + b.first) / 2.0))
+    val abLat = b.first - a.first
+    val abLng = (b.second - a.second) * cosLat
+    val apLat = p.first - a.first
+    val apLng = (p.second - a.second) * cosLat
+    val ab2 = abLat * abLat + abLng * abLng
+    val t = if (ab2 == 0.0) 0.0 else ((apLat * abLat + apLng * abLng) / ab2).coerceIn(0.0, 1.0)
+    return a.first + (b.first - a.first) * t to a.second + (b.second - a.second) * t
+}
+
+internal fun meters(a: Pair<Double, Double>, b: Pair<Double, Double>): Double {
     val lat = (a.first - b.first) * 111_320.0
     val lng = (a.second - b.second) * 111_320.0 * cos(Math.toRadians((a.first + b.first) / 2.0))
     return hypot(lat, lng)
 }
 
 /** Walking directions along campus paths. Null when the request fails, so the map keeps a straight line. */
-private suspend fun walkingRoute(from: Pair<Double, Double>, to: Pair<Double, Double>): List<Pair<Double, Double>>? =
+internal suspend fun walkingRoute(from: Pair<Double, Double>, to: Pair<Double, Double>): List<Pair<Double, Double>>? =
     withContext(Dispatchers.IO) {
         try {
             val connection = URL(

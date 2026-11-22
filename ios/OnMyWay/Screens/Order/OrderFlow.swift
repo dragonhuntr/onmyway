@@ -310,7 +310,8 @@ struct EnterOrderNumberView: View {
             value().font(.subheadline.weight(.semibold)).foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, height: 60, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(height: 60)
         .background(Color.canvas, in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)
     }

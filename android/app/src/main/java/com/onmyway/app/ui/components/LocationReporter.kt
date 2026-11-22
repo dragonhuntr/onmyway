@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 /** Sends the runner's location to the server while this is composed (a delivery is on screen). */
 @Composable
 fun ReportLocationWhileVisible(
+    enabled: Boolean = true,
     onAllowed: (Boolean) -> Unit = {},
     report: (latitude: Double, longitude: Double) -> Unit,
 ) {
@@ -38,9 +39,9 @@ fun ReportLocationWhileVisible(
     }
 
     val latestReport by rememberUpdatedState(report)
-    DisposableEffect(granted) {
+    DisposableEffect(granted, enabled) {
         val manager = context.getSystemService(LocationManager::class.java)
-        if (!granted || manager == null) return@DisposableEffect onDispose {}
+        if (!enabled || !granted || manager == null) return@DisposableEffect onDispose {}
 
         var lastSent = 0L
         val listener = LocationListener { location ->

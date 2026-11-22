@@ -12,7 +12,7 @@ import {
   resendVerification,
 } from "./auth.ts";
 import { home, listBuildings, setDestination } from "./places.ts";
-import { activeOrder, cancelOrder, confirmPayment, createOrder, getOrder, listOrders, reportOrder } from "./orders.ts";
+import { activeOrder, cancelOrder, confirmPayment, createOrder, getOrder, listOrders, markFoodReady, reportOrder } from "./orders.ts";
 import {
   acceptOrder,
   confirmDropoff,
@@ -60,6 +60,7 @@ const router = new Router()
   .on("POST", "/orders/:id/payment", confirmPayment)
   .on("POST", "/orders/:id/cancel", cancelOrder)
   .on("POST", "/orders/:id/rating", rateOrder)
+  .on("POST", "/orders/:id/ready", markFoodReady)
   .on("POST", "/orders/:id/report", reportOrder)
   .on("POST", "/tips/:id/payment", confirmTip)
   // Chat

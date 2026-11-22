@@ -419,6 +419,8 @@ struct ActiveDeliveryView: View {
     @State private var locationAllowed = true
     @State private var handoffCode = ""
     @FocusState private var codeFocused: Bool
+    @State private var simulating = false
+    @State private var walk: Task<Void, Never>?
 
     init(order: Order, done: @escaping () -> Void) {
         _order = State(initialValue: order)
@@ -426,6 +428,12 @@ struct ActiveDeliveryView: View {
     }
 
     private var atPickup: Bool { order.status == .accepted }
+
+    /// Matches the request cards: a time only when pickup is still more than a couple of minutes out.
+    private var readyLine: String {
+        guard let readyAt = order.readyAt, readyAt > .now.addingTimeInterval(120) else { return "Ready now" }
+        return "Ready at \(readyAt.shortTime)"
+    }
     private var needsCode: Bool { !atPickup && order.needsHandoffCode == true }
     private var customerName: String { order.customer?.name ?? order.nameOnOrder }
 
@@ -444,8 +452,18 @@ struct ActiveDeliveryView: View {
                     runnerTitle: "You",
                     headingToPickup: atPickup
                 )
+                .overlay(alignment: .top) {
+                    Button(simulating ? "Stop walk" : "Simulate walk") {
+                        if simulating { stopWalk() } else { startWalk() }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.white, in: .capsule)
+                    .padding(.top, 10)
+                }
                 .overlay(alignment: .bottom) {
-                    if !locationAllowed {
+                    if !locationAllowed && !simulating {
                         Button("Allow location so they can see you") {
                             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                         }
@@ -485,14 +503,21 @@ struct ActiveDeliveryView: View {
             }
         }
         .task { await model.loadBuildings() }
-        .onAppear {
-            location.onAccess = { locationAllowed = $0 }
-            location.start { coordinate in
-                here = coordinate
-                Task { await model.reportLocation(latitude: coordinate.latitude, longitude: coordinate.longitude) }
+        .task {
+            // The customer can mark the food ready while this screen is open.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await model.refreshRunner()
+                if let fresh = model.activeDelivery, fresh.id == order.id, fresh.status == order.status {
+                    order = fresh
+                }
             }
         }
-        .onDisappear { location.stop() }
+        .onAppear { beginLocation() }
+        .onDisappear {
+            walk?.cancel()
+            location.stop()
+        }
         .footer {
             if let errorMessage {
                 Text(errorMessage).font(.footnote.weight(.semibold)).foregroundStyle(Color.inkSecondary)
@@ -508,6 +533,57 @@ struct ActiveDeliveryView: View {
             .buttonStyle(.plain)
             .frame(minHeight: 24)
         }
+    }
+
+    /// Real GPS. Stopped while a simulated walk is posting its own points.
+    private func beginLocation() {
+        location.onAccess = { locationAllowed = $0 }
+        location.start { coordinate in
+            here = coordinate
+            Task { await model.reportLocation(latitude: coordinate.latitude, longitude: coordinate.longitude) }
+        }
+    }
+
+    /// Walks the campus path and sends each point, so the customer's map moves too.
+    /// Before pickup the runner starts about 150 meters from the restaurant. After pickup they walk to the drop-off.
+    private func startWalk() {
+        guard let pickup = order.restaurant.building.coordinate, let dropoff = order.destination.coordinate else { return }
+        let end = atPickup ? pickup : dropoff
+        let routeStart = atPickup ? dropoff : pickup
+        location.stop()
+        simulating = true
+        walk = Task {
+            let route = await walkingRoute(from: routeStart, to: end)
+            let points = route.count >= 2 ? route : [routeStart, end]
+            let step = max(1, points.count / 28)
+            var index = atPickup ? indexAbout(150, beforeEndOf: points) : 0
+            while index < points.count {
+                if Task.isCancelled { return }
+                let point = points[index]
+                here = point
+                await model.reportLocation(latitude: point.latitude, longitude: point.longitude)
+                do { try await Task.sleep(for: .seconds(1.5)) } catch { return }
+                index += step
+            }
+        }
+    }
+
+    /// A point on the path about `distance` meters before the last one.
+    private func indexAbout(_ distance: Double, beforeEndOf points: [CLLocationCoordinate2D]) -> Int {
+        var walked = 0.0
+        var index = points.count - 1
+        while index > 0 {
+            walked += meters(points[index], points[index - 1])
+            if walked >= distance { return index - 1 }
+            index -= 1
+        }
+        return 0
+    }
+
+    private func stopWalk() {
+        walk?.cancel()
+        simulating = false
+        beginLocation()
     }
 
     private func advance() async {
@@ -556,7 +632,7 @@ struct ActiveDeliveryView: View {
                 Text(atPickup ? order.restaurant.name : order.destination.full)
                     .font(.title3.bold()).foregroundStyle(Color.ink)
                 Text(atPickup
-                     ? "\(order.restaurant.building.name) · Ready at \(order.readyAt?.shortTime ?? "any minute")"
+                     ? "\(order.restaurant.building.name) · \(readyLine)"
                      : "\(order.walkMinutes) min walk from pickup")
                     .font(.footnote).foregroundStyle(Color.inkSecondary)
             }

@@ -22,16 +22,14 @@ struct OrdersTab: View {
     }
 }
 
-/// Orders with nothing on the way: finished orders, newest first, showing 5 recent orders with total spent and a show more button.
+/// Orders with nothing on the way: finished orders, newest first, paging in as you scroll.
 struct PastOrdersView: View {
     @Environment(AppModel.self) private var model
-    @State private var showingAll = false
+    @State private var showAllPastOrders = false
 
-    private var totalSpentCents: Int {
-        model.pastOrders
-            .filter { $0.status == .delivered }
-            .reduce(0) { $0 + $1.dueNowCents + $1.extraTipCents }
-    }
+    private var deliveredOrders: [Order] { model.pastOrders.filter { $0.status == .delivered } }
+    private var totalSpentCents: Int { deliveredOrders.reduce(0) { $0 + $1.dueNowCents + $1.extraTipCents } }
+    private var visibleOrders: [Order] { showAllPastOrders ? model.pastOrders : Array(model.pastOrders.prefix(5)) }
 
     var body: some View {
         Group {
@@ -46,54 +44,23 @@ struct PastOrdersView: View {
                 }
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Eyebrow("TOTAL SPENT ON ORDERS")
-                            Text(totalSpentCents.usd)
-                                .font(.largeTitle.bold())
-                                .foregroundStyle(Color.ink)
-                        }
-                        .card(padding: 18, radius: 18)
-
-                        Text("Past orders")
-                            .font(.headline)
-                            .foregroundStyle(Color.ink)
-                            .padding(.top, 4)
-
-                        let ordersToShow = showingAll ? model.pastOrders : Array(model.pastOrders.prefix(5))
-                        ForEach(ordersToShow) { order in
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        totalSpentCard
+                        Text("Past orders").font(.headline).foregroundStyle(Color.ink)
+                        ForEach(visibleOrders) { order in
                             PastOrderRow(order: order)
                         }
-
-                        if !showingAll && model.pastOrders.count > 5 {
-                            Button("Show more") {
-                                showingAll = true
+                        if model.pastOrders.count > 5 {
+                            let remaining = model.pastOrders.count - 5
+                            Button(showAllPastOrders ? "Show less" : "Show more (\(remaining) more)") {
+                                showAllPastOrders.toggle()
                             }
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.brand)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(.white, in: .rect(cornerRadius: 14))
-                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.hairline))
-                            .buttonStyle(.plain)
-                        } else if let cursor = model.pastOrdersCursor {
-                            if showingAll {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity)
-                                    .task(id: cursor) { await model.loadMorePastOrders() }
-                            } else {
-                                Button("Show more") {
-                                    Task {
-                                        await model.loadMorePastOrders()
-                                        showingAll = true
-                                    }
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.brand)
-                                .frame(maxWidth: .infinity, minHeight: 48)
-                                .background(.white, in: .rect(cornerRadius: 14))
-                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.hairline))
-                                .buttonStyle(.plain)
-                            }
+                            .buttonStyle(.outlineCTA)
+                        }
+                        if showAllPastOrders, let cursor = model.pastOrdersCursor {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .task(id: cursor) { await model.loadMorePastOrders() }
                         }
                     }
                     .padding(20)
@@ -104,6 +71,24 @@ struct PastOrdersView: View {
         .background(Color.canvas)
         .navigationTitle("Orders")
         .task { await model.loadPastOrders() }
+    }
+
+    /// Fee plus tip for every delivered order, matching the Android total card.
+    private var totalSpentCard: some View {
+        HStack(spacing: 14) {
+            Image(.dollar).resizable().frame(width: 22, height: 22)
+                .frame(width: 44, height: 44)
+                .background(Color.amberSoft, in: .rect(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 2) {
+                Eyebrow("TOTAL SPENT")
+                Text(totalSpentCents.usd).font(.title2.bold()).foregroundStyle(Color.ink)
+                Text(deliveredOrders.count == 1 ? "Across 1 completed delivery" : "Across \(deliveredOrders.count) completed deliveries")
+                    .font(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .card(padding: 16)
     }
 }
 
@@ -195,6 +180,8 @@ struct OrderTrackingView: View {
     let runner: Runner
     @Environment(AppModel.self) private var model
     @State private var chatting = false
+    @State private var tellingRunner = false
+    @State private var toldRunner = false
 
     private var eta: Int { order.etaMinutes ?? order.walkMinutes }
     private var stage: String { order.status == .pickedUp ? "On the way" : "Picking up" }
@@ -287,6 +274,23 @@ struct OrderTrackingView: View {
             if let code = order.handoffCode { handoffCard(code) }
 
             timeline
+
+            if order.status == .accepted {
+                Button(toldRunner ? "Runner notified" : "Food is ready") {
+                    tellingRunner = true
+                    Task {
+                        do {
+                            try await model.markFoodReady()
+                            toldRunner = true
+                        } catch {
+                            toldRunner = false
+                        }
+                        tellingRunner = false
+                    }
+                }
+                .buttonStyle(.primaryCTA)
+                .disabled(tellingRunner || toldRunner)
+            }
 
             Button("Message \(runner.firstName)") { chatting = true }
                 .buttonStyle(.secondaryCTA)

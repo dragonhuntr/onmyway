@@ -20,10 +20,9 @@ export default defineConfig({
       STRIPE_WEBHOOK_SECRET: bindings.secret(),
       APNS_TOPIC: bindings.text("com.onmyway.app"),
       APNS_ENVIRONMENT: bindings.text("sandbox"),
-      APNS_KEY: bindings.secret(),
-      APNS_KEY_ID: bindings.secret(),
-      APNS_TEAM_ID: bindings.secret(),
-      FCM_SERVICE_ACCOUNT: bindings.secret(),
+      // APNS_KEY, APNS_KEY_ID, APNS_TEAM_ID, and FCM_SERVICE_ACCOUNT are optional.
+      // Push is skipped until someone sets them with `wrangler secret put`. Listing them here
+      // makes `cf deploy` refuse to publish when they are missing.
       EMAIL_FROM: bindings.text("On My Way <onboarding@resend.dev>"),
       RESEND_API_KEY: bindings.secret(),
     },
