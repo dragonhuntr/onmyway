@@ -222,7 +222,16 @@ struct EnterOrderNumberView: View {
             if let payment {
                 switch await Payments.pay(payment) {
                 case .completed:
-                    try await model.confirmPayment()
+                    do {
+                        try await model.confirmPayment()
+                    } catch {
+                        // Stripe can open the order for runners before this reply gets back.
+                        await model.loadActiveOrder()
+                        guard let order = model.activeOrder, order.status != .awaitingPayment else {
+                            errorMessage = error.localizedDescription
+                            return
+                        }
+                    }
                 case .canceled:
                     return
                 case .failed(let error):

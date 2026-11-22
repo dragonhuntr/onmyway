@@ -557,13 +557,14 @@ struct ActiveDeliveryView: View {
             let points = route.count >= 2 ? route : [routeStart, end]
             let step = max(1, points.count / 28)
             var index = atPickup ? indexAbout(150, beforeEndOf: points) : 0
-            while index < points.count {
+            while true {
                 if Task.isCancelled { return }
                 let point = points[index]
                 here = point
                 await model.reportLocation(latitude: point.latitude, longitude: point.longitude)
+                if index >= points.count - 1 { return }
                 do { try await Task.sleep(for: .seconds(1.5)) } catch { return }
-                index += step
+                index = min(index + step, points.count - 1)
             }
         }
     }

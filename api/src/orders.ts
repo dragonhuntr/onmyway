@@ -85,10 +85,8 @@ export function pickupAndDropoff(order: OrderRow, { buildings, restaurants }: Pl
 /** Rough minutes until hand-off, from the runner's live location when we have one. */
 function etaMinutes(order: OrderRow, pickup: Building, dropoff: Building, runner: Point | null): number | null {
   if (order.status === "accepted") {
-    const from = runner ?? pickup;
-    const toPickup = runner ? walkMinutes(from, pickup) : 0;
-    const untilReady = order.ready_at ? Math.max(0, (Date.parse(order.ready_at) - Date.now()) / 60_000) : 0;
-    return Math.round(Math.max(toPickup, untilReady) + walkMinutes(pickup, dropoff));
+    // Minutes until the runner reaches the restaurant. The walk to the customer starts after pickup.
+    return runner ? walkMinutes(runner, pickup) : walkMinutes(pickup, dropoff);
   }
   if (order.status === "picked_up") return walkMinutes(runner ?? pickup, dropoff);
   return null;

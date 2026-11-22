@@ -656,12 +656,13 @@ private fun ActiveDeliveryScreen(model: AppModel, initial: Order, onBack: () -> 
             val points = if (route != null && route.size >= 2) route else listOf(routeStart, end)
             val step = maxOf(1, points.size / 28)
             var index = if (atPickup) indexAbout(150.0, points) else 0
-            while (index < points.size) {
+            while (true) {
                 val point = points[index]
                 here = point
                 model.reportLocation(point.first, point.second)
+                if (index >= points.lastIndex) break
                 delay(1_500)
-                index += step
+                index = minOf(index + step, points.lastIndex)
             }
         }
     }

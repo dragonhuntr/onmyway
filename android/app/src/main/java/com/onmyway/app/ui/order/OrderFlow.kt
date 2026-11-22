@@ -264,7 +264,19 @@ private fun EnterOrderNumberScreen(
             val payment = model.createOrder(restaurant, orderNumber.trim(), nameOnOrder, readyAt, tip)
             if (payment != null) {
                 when (val result = payments.pay(payment)) {
-                    is PaymentSheetResult.Completed -> model.confirmPayment()
+                    is PaymentSheetResult.Completed -> {
+                        try {
+                            model.confirmPayment()
+                        } catch (e: ApiException) {
+                            // Stripe can open the order for runners before this reply gets back.
+                            model.loadActiveOrder()
+                            val placed = model.activeOrder
+                            if (placed == null || placed.status == Order.Status.AwaitingPayment) {
+                                errorMessage = e.message
+                                return
+                            }
+                        }
+                    }
                     is PaymentSheetResult.Canceled -> return
                     is PaymentSheetResult.Failed -> {
                         errorMessage = result.error.localizedMessage ?: "Payment failed. Try again."
